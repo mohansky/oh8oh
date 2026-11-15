@@ -9,38 +9,274 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SourcesRouteImport } from './routes/sources'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as OfflineRouteImport } from './routes/offline'
+import { Route as MyEventsRouteImport } from './routes/my-events'
+import { Route as FeaturedRouteImport } from './routes/featured'
+import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as BookmarksRouteImport } from './routes/bookmarks'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AddEventRouteImport } from './routes/add-event'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as EventFingerprintRouteImport } from './routes/event.$fingerprint'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminReviewEventsRouteImport } from './routes/admin/review-events'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
+const SourcesRoute = SourcesRouteImport.update({
+  id: '/sources',
+  path: '/sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflineRoute = OfflineRouteImport.update({
+  id: '/offline',
+  path: '/offline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyEventsRoute = MyEventsRouteImport.update({
+  id: '/my-events',
+  path: '/my-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturedRoute = FeaturedRouteImport.update({
+  id: '/featured',
+  path: '/featured',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookmarksRoute = BookmarksRouteImport.update({
+  id: '/bookmarks',
+  path: '/bookmarks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddEventRoute = AddEventRouteImport.update({
+  id: '/add-event',
+  path: '/add-event',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventFingerprintRoute = EventFingerprintRouteImport.update({
+  id: '/event/$fingerprint',
+  path: '/event/$fingerprint',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminReviewEventsRoute = AdminReviewEventsRouteImport.update({
+  id: '/admin/review-events',
+  path: '/admin/review-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/add-event': typeof AddEventRoute
+  '/auth': typeof AuthRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/calendar': typeof CalendarRoute
+  '/featured': typeof FeaturedRoute
+  '/my-events': typeof MyEventsRoute
+  '/offline': typeof OfflineRoute
+  '/profile': typeof ProfileRoute
+  '/sources': typeof SourcesRoute
+  '/admin/review-events': typeof AdminReviewEventsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/event/$fingerprint': typeof EventFingerprintRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/add-event': typeof AddEventRoute
+  '/auth': typeof AuthRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/calendar': typeof CalendarRoute
+  '/featured': typeof FeaturedRoute
+  '/my-events': typeof MyEventsRoute
+  '/offline': typeof OfflineRoute
+  '/profile': typeof ProfileRoute
+  '/sources': typeof SourcesRoute
+  '/admin/review-events': typeof AdminReviewEventsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/event/$fingerprint': typeof EventFingerprintRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/add-event': typeof AddEventRoute
+  '/auth': typeof AuthRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/calendar': typeof CalendarRoute
+  '/featured': typeof FeaturedRoute
+  '/my-events': typeof MyEventsRoute
+  '/offline': typeof OfflineRoute
+  '/profile': typeof ProfileRoute
+  '/sources': typeof SourcesRoute
+  '/admin/review-events': typeof AdminReviewEventsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/event/$fingerprint': typeof EventFingerprintRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/add-event'
+    | '/auth'
+    | '/bookmarks'
+    | '/calendar'
+    | '/featured'
+    | '/my-events'
+    | '/offline'
+    | '/profile'
+    | '/sources'
+    | '/admin/review-events'
+    | '/admin/users'
+    | '/event/$fingerprint'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/add-event'
+    | '/auth'
+    | '/bookmarks'
+    | '/calendar'
+    | '/featured'
+    | '/my-events'
+    | '/offline'
+    | '/profile'
+    | '/sources'
+    | '/admin/review-events'
+    | '/admin/users'
+    | '/event/$fingerprint'
+    | '/api/auth/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/add-event'
+    | '/auth'
+    | '/bookmarks'
+    | '/calendar'
+    | '/featured'
+    | '/my-events'
+    | '/offline'
+    | '/profile'
+    | '/sources'
+    | '/admin/review-events'
+    | '/admin/users'
+    | '/event/$fingerprint'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AddEventRoute: typeof AddEventRoute
+  AuthRoute: typeof AuthRoute
+  BookmarksRoute: typeof BookmarksRoute
+  CalendarRoute: typeof CalendarRoute
+  FeaturedRoute: typeof FeaturedRoute
+  MyEventsRoute: typeof MyEventsRoute
+  OfflineRoute: typeof OfflineRoute
+  ProfileRoute: typeof ProfileRoute
+  SourcesRoute: typeof SourcesRoute
+  AdminReviewEventsRoute: typeof AdminReviewEventsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  EventFingerprintRoute: typeof EventFingerprintRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sources': {
+      id: '/sources'
+      path: '/sources'
+      fullPath: '/sources'
+      preLoaderRoute: typeof SourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline': {
+      id: '/offline'
+      path: '/offline'
+      fullPath: '/offline'
+      preLoaderRoute: typeof OfflineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-events': {
+      id: '/my-events'
+      path: '/my-events'
+      fullPath: '/my-events'
+      preLoaderRoute: typeof MyEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/featured': {
+      id: '/featured'
+      path: '/featured'
+      fullPath: '/featured'
+      preLoaderRoute: typeof FeaturedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bookmarks': {
+      id: '/bookmarks'
+      path: '/bookmarks'
+      fullPath: '/bookmarks'
+      preLoaderRoute: typeof BookmarksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add-event': {
+      id: '/add-event'
+      path: '/add-event'
+      fullPath: '/add-event'
+      preLoaderRoute: typeof AddEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +284,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/event/$fingerprint': {
+      id: '/event/$fingerprint'
+      path: '/event/$fingerprint'
+      fullPath: '/event/$fingerprint'
+      preLoaderRoute: typeof EventFingerprintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/review-events': {
+      id: '/admin/review-events'
+      path: '/admin/review-events'
+      fullPath: '/admin/review-events'
+      preLoaderRoute: typeof AdminReviewEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AddEventRoute: AddEventRoute,
+  AuthRoute: AuthRoute,
+  BookmarksRoute: BookmarksRoute,
+  CalendarRoute: CalendarRoute,
+  FeaturedRoute: FeaturedRoute,
+  MyEventsRoute: MyEventsRoute,
+  OfflineRoute: OfflineRoute,
+  ProfileRoute: ProfileRoute,
+  SourcesRoute: SourcesRoute,
+  AdminReviewEventsRoute: AdminReviewEventsRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  EventFingerprintRoute: EventFingerprintRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

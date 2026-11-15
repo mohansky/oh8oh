@@ -11,3 +11,15 @@ count.txt
 .output
 .vinxi
 todos.json
+
+# Local development databases
+sqlite.db
+*.db-shm
+*.db-wal
+
+# Build outputs
+dev-dist
+
+# IDE
+.vscode
+.idea
