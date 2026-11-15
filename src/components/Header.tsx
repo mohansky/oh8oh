@@ -1,4 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
+import { LogIn, LogOut } from 'lucide-react'
+import { authClient } from '../lib/auth-client'
+import { getMenuItemsForRole } from '../data/menu-config'
 import { Image } from './Image'
 import {
   Menubar,
@@ -18,10 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LogOut, LogIn } from 'lucide-react'
 
-import { authClient } from '../lib/auth-client'
-import { getMenuItemsForRole } from '../data/menu-config'
 
 export default function Header() {
   const navigate = useNavigate()

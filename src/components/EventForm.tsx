@@ -4,12 +4,15 @@ import { format } from 'date-fns'
 import {
   Calendar as CalendarIcon,
   Clock,
+  IndianRupeeIcon,
   Link as LinkIcon,
   MapPin,
-  IndianRupeeIcon,
   X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '../lib/utils'
+import { createUserEvent, updateUserEvent } from '../lib/server/user-events'
+import { getAllCategories, normalizeCategories, serializeCategories } from '../lib/utils/categorize-event'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -26,9 +29,6 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { TimePicker } from './ui/time-picker'
 import { Badge } from './ui/badge'
 import { Checkbox } from './ui/checkbox'
-import { createUserEvent, updateUserEvent } from '../lib/server/user-events'
-import { toast } from 'sonner'
-import { getAllCategories, normalizeCategories, serializeCategories } from '../lib/utils/categorize-event'
 
 interface EventFormProps {
   onSuccess?: () => void
@@ -42,7 +42,7 @@ interface EventFormProps {
     time?: string
     link?: string
     description?: string
-    category?: string | string[]
+    category?: string | Array<string>
     venue?: string
     price?: string
     image?: string
@@ -85,7 +85,7 @@ export function EventForm({
       time: initialValues?.time || '',
       link: initialValues?.link || '',
       description: initialValues?.description || '',
-      category: normalizeCategories(initialValues?.category) as string[],
+      category: normalizeCategories(initialValues?.category),
       venue: initialValues?.venue || '',
       price: initialValues?.price || '',
       featured: initialValues?.featured || false,
@@ -339,7 +339,7 @@ export function EventForm({
       <form.Field
         name="category"
         children={(field) => {
-          const selectedCategories = field.state.value as string[]
+          const selectedCategories = field.state.value
           const availableCategories = getAllCategories()
 
           const toggleCategory = (category: string) => {

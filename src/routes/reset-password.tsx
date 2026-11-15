@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { Eye, EyeOff } from 'lucide-react'
+import { z } from 'zod'
 import { authClient } from '../lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Eye, EyeOff } from 'lucide-react'
-import { z } from 'zod'
 
 export const Route = createFileRoute('/reset-password')({
   validateSearch: z.object({

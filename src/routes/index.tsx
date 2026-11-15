@@ -225,7 +225,15 @@ function EventsPage() {
     .sort((a, b) => compareEventDateTimes(a, b))
 
   // Get unique sources and categories
-  const sources = ['all', ...new Set(upcomingEvents.map((e) => e.source))]
+  // An event merged from two sites has a source like "BIC, Urbanaut", so
+  // split before listing and match on any one of them.
+  const eventSources = (source: string) => source.split(',').map((s) => s.trim())
+  const sources = [
+    'all',
+    ...[...new Set(upcomingEvents.flatMap((e) => eventSources(e.source)))].sort(
+      (a, b) => a.localeCompare(b),
+    ),
+  ]
   const categories = ['all', ...getAllCategories().filter(cat => cat !== 'Other'), 'Other']
 
   // Filter events by search, source, date, and category
@@ -235,7 +243,7 @@ function EventsPage() {
       event.title.toLowerCase().includes(searchLower) ||
       matchesVenueOrAlias(event.venue, filter)
     const matchesSource =
-      sourceFilter === 'all' || event.source === sourceFilter
+      sourceFilter === 'all' || eventSources(event.source).includes(sourceFilter)
 
     // Apply date filter
     let matchesDate = true
@@ -286,7 +294,6 @@ function EventsPage() {
         categories={categories}
         filteredCount={filteredEvents.length}
         totalCount={upcomingEvents.length}
-        showSourceFilter={false}
         cacheAge={data.cacheAge}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}

@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio'
-import { EventScraper, ScraperResult } from './types'
-import { fetchRenderedHTML } from './browser-helper'
 import { categorizeEvent } from '../utils/categorize-event'
+import { fetchRenderedHTML } from './browser-helper'
+import type { EventScraper, ScraperResult } from './types'
 
 export const sabhaScraper: EventScraper = {
   id: 'sabha',

@@ -3,7 +3,7 @@
  * Handles various date and time formats from different event sources
  */
 
-const MONTH_MAP: { [key: string]: number } = {
+export const MONTH_MAP: { [key: string]: number } = {
   jan: 0,
   january: 0,
   feb: 1,
@@ -65,7 +65,7 @@ export function extractTime(dateTimeString: string): string {
 
   // Clean up the string: add space after 4-digit years if followed by a time
   // This fixes BIC's format: "Fri, 7 Nov 20256:30 pm" -> "Fri, 7 Nov 2025 6:30 pm"
-  let cleanedString = dateTimeString.replace(/(\d{4})(\d{1,2}:\d{2}\s*[ap]m)/gi, '$1 $2')
+  const cleanedString = dateTimeString.replace(/(\d{4})(\d{1,2}:\d{2}\s*[ap]m)/gi, '$1 $2')
 
   // Match time patterns like:
   // "4:00 pm – 7:00 pm" or "06:00 PM – 07:30 PM"
@@ -197,6 +197,34 @@ function todayKeyIST(now: Date): number {
 }
 
 /**
+ * Pick the year for a date a source lists without one ("Sat, 20 Mar").
+ *
+ * Listings show upcoming events, so the date is normally this year or next.
+ * A date that is a little in the past is still this year (sites keep events
+ * up for a while after they happen) — only a date well behind us has to mean
+ * next year. Rolling over the moment a date passes would stamp a just-finished
+ * event with next year and keep it listed for twelve months.
+ *
+ * @param monthIndex 0 = January
+ */
+export function inferEventYear(
+  monthIndex: number,
+  day: number,
+  now: Date = new Date(),
+): number {
+  const DAY = 24 * 60 * 60 * 1000
+  const ist = new Date(now.getTime() + IST_OFFSET_MS)
+  const year = ist.getUTCFullYear()
+  const today = Date.UTC(year, ist.getUTCMonth(), ist.getUTCDate())
+  const candidate = Date.UTC(year, monthIndex, day)
+
+  if (today - candidate > 60 * DAY) return year + 1
+  // Early January looking at a late-December event that just happened.
+  if (candidate - today > 300 * DAY) return year - 1
+  return year
+}
+
+/**
  * True when the event's last day is before today in Bangalore.
  * Events whose date can't be parsed ("Check website for dates") are never
  * considered ended here — staleness for those is judged by when they were
@@ -302,73 +330,59 @@ export function compareEventDateTimes(
 }
 
 /**
- * Check if an event is today
+ * The calendar day an event falls on, as a comparable number (see toDayKey).
  */
-export function isToday(dateString: string): boolean {
+function eventDayKey(dateString: string): number | null {
   const eventDate = parseEventDate(dateString)
-  if (!eventDate) return false
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-
-  return eventDate >= today && eventDate < tomorrow
+  if (!eventDate) return null
+  return toDayKey(
+    eventDate.getFullYear(),
+    eventDate.getMonth(),
+    eventDate.getDate(),
+  )
 }
 
 /**
- * Check if an event is tomorrow
+ * Day key for the date `offsetDays` after today in Bangalore.
  */
-export function isTomorrow(dateString: string): boolean {
-  const eventDate = parseEventDate(dateString)
-  if (!eventDate) return false
-
-  const tomorrow = new Date()
-  tomorrow.setHours(0, 0, 0, 0)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-
-  const dayAfterTomorrow = new Date(tomorrow)
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1)
-
-  return eventDate >= tomorrow && eventDate < dayAfterTomorrow
+function dayKeyFromTodayIST(offsetDays: number, now: Date): number {
+  return todayKeyIST(new Date(now.getTime() + offsetDays * 24 * 60 * 60 * 1000))
 }
 
 /**
- * Check if an event is on the coming weekend (next Saturday and Sunday)
+ * Check if an event is today (Bangalore time)
  */
-export function isWeekend(dateString: string): boolean {
-  const eventDate = parseEventDate(dateString)
-  if (!eventDate) return false
+export function isToday(dateString: string, now: Date = new Date()): boolean {
+  const key = eventDayKey(dateString)
+  return key !== null && key === todayKeyIST(now)
+}
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+/**
+ * Check if an event is tomorrow (Bangalore time)
+ */
+export function isTomorrow(dateString: string, now: Date = new Date()): boolean {
+  const key = eventDayKey(dateString)
+  return key !== null && key === dayKeyFromTodayIST(1, now)
+}
 
-  // Only show upcoming events
-  if (eventDate < today) return false
+/**
+ * Check if an event is on the coming weekend (Bangalore time).
+ * On a Saturday that means today and tomorrow; on a Sunday, just today;
+ * otherwise the next Saturday and Sunday.
+ */
+export function isWeekend(dateString: string, now: Date = new Date()): boolean {
+  const key = eventDayKey(dateString)
+  if (key === null) return false
 
-  const todayDayOfWeek = today.getDay()
+  // Day of week in Bangalore: 0 = Sunday … 6 = Saturday
+  const dayOfWeek = new Date(now.getTime() + IST_OFFSET_MS).getUTCDay()
+  if (dayOfWeek === 0) return key === todayKeyIST(now)
 
-  // Calculate the next Saturday
-  let daysUntilSaturday = 6 - todayDayOfWeek // Saturday = 6
-  if (daysUntilSaturday < 0) daysUntilSaturday += 7
-
-  // If today is Sunday (0), we want next Saturday (6 days away)
-  if (todayDayOfWeek === 0) {
-    daysUntilSaturday = 6
-  }
-
-  const nextSaturday = new Date(today)
-  nextSaturday.setDate(today.getDate() + daysUntilSaturday)
-
-  const nextSunday = new Date(nextSaturday)
-  nextSunday.setDate(nextSaturday.getDate() + 1)
-
-  const mondayAfterWeekend = new Date(nextSunday)
-  mondayAfterWeekend.setDate(nextSunday.getDate() + 1)
-
-  // Event must be on the coming Saturday or Sunday
-  return eventDate >= nextSaturday && eventDate < mondayAfterWeekend
+  const daysUntilSaturday = 6 - dayOfWeek
+  return (
+    key === dayKeyFromTodayIST(daysUntilSaturday, now) ||
+    key === dayKeyFromTodayIST(daysUntilSaturday + 1, now)
+  )
 }
 
 /**

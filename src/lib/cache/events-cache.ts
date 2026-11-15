@@ -5,7 +5,6 @@
 
 import { scrapeAllSources } from '../scrapers'
 import {
-  getEventStats,
   getLastScraperRun,
   getUpcomingEvents,
   pruneStaleEvents,
@@ -144,42 +143,5 @@ async function refreshEventsInBackground(fastOnly: boolean = false, env?: any) {
   } finally {
     isRefreshing = false
     lastRefreshPromise = null
-  }
-}
-
-/**
- * Manually clear the cache and trigger fresh scrape
- */
-export async function clearCache(env?: any) {
-  console.log('🗑️  Clearing cache and forcing refresh...')
-  return forceRefreshEvents(false, env)
-}
-
-/**
- * Get cache status without fetching
- */
-export async function getCacheStatus() {
-  const lastRun = await getLastScraperRun()
-  const stats = await getEventStats()
-
-  if (!lastRun) {
-    return {
-      exists: false,
-      age: 0,
-      stats,
-    }
-  }
-
-  const age = Math.round((Date.now() - lastRun.startedAt.getTime()) / 1000 / 60)
-  const isStale = Date.now() - lastRun.startedAt.getTime() >= REFRESH_INTERVAL
-
-  return {
-    exists: true,
-    age,
-    isStale,
-    ttl: REFRESH_INTERVAL / 1000 / 60, // in minutes
-    lastRun,
-    stats,
-    isRefreshing,
   }
 }

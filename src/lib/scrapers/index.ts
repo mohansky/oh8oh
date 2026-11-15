@@ -37,13 +37,6 @@ export function getEnabledScrapers(): Array<EventScraper> {
 }
 
 /**
- * Get a specific scraper by ID
- */
-export function getScraperById(id: string): EventScraper | undefined {
-  return scrapers.find((scraper) => scraper.id === id)
-}
-
-/**
  * Callback for incremental loading - called as each scraper completes
  */
 export type ScraperProgressCallback = (update: {

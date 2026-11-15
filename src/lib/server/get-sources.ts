@@ -9,7 +9,7 @@ interface SourceInfo {
 
 export const getSources = createServerFn({
   method: 'GET',
-}).handler(async (): Promise<SourceInfo[]> => {
+}).handler(async (): Promise<Array<SourceInfo>> => {
   const { scrapers } = await import('../scrapers')
 
   return scrapers.map((scraper) => ({

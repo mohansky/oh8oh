@@ -1,11 +1,11 @@
+import { AspectRatio } from './ui/aspect-ratio'
+import { Skeleton } from './ui/skeleton'
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
 } from '@/components/ui/card'
-import { AspectRatio } from './ui/aspect-ratio'
-import { Skeleton } from './ui/skeleton'
 
 export function EventCardSkeleton() {
   return (

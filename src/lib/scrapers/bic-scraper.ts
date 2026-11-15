@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio'
-import { EventScraper, ScraperResult } from './types'
 import { categorizeEvent } from '../utils/categorize-event'
+import type { EventScraper, ScraperResult } from './types'
 
 export const bicScraper: EventScraper = {
   id: 'bic',

@@ -106,21 +106,3 @@ export async function getUserBookmarkIds(userId: string): Promise<Set<string>> {
 
   return new Set(userBookmarks.map((b) => b.id))
 }
-
-/**
- * Check multiple events at once to see which are bookmarked
- */
-export async function getBookmarkStatusMap(
-  userId: string,
-  events: Array<Event>
-): Promise<Map<string, boolean>> {
-  const bookmarkIds = await getUserBookmarkIds(userId)
-  const statusMap = new Map<string, boolean>()
-
-  events.forEach((event) => {
-    const id = generateBookmarkId(userId, event)
-    statusMap.set(event.link, bookmarkIds.has(id))
-  })
-
-  return statusMap
-}

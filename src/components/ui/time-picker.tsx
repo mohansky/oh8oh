@@ -1,7 +1,7 @@
 import * as React from 'react'
+import { cn } from '../../lib/utils'
 import { Input } from './input'
 import { Button } from './button'
-import { cn } from '../../lib/utils'
 
 interface TimePickerProps {
   value?: string // HH:mm format (24-hour)

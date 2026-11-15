@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth'
+import { APIError } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 // import { passkey } from '@better-auth/passkey'
 import { Resend } from 'resend'
@@ -39,6 +40,36 @@ function createAuth() {
     user: {
       deleteUser: {
         enabled: true,
+        // removed_events.removedBy references the user without ON DELETE
+        // CASCADE (those rows must outlive the admin so removed events stay
+        // hidden), so deleting an admin who has removed events would fail
+        // with a raw foreign-key error. Hand their moderation records to
+        // another admin first, or refuse with a clear message.
+        beforeDelete: async (user: { id: string }) => {
+          const { and, eq, ne } = await import('drizzle-orm')
+          const owned = await db
+            .select({ id: schema.removedEvents.id })
+            .from(schema.removedEvents)
+            .where(eq(schema.removedEvents.removedBy, user.id))
+            .limit(1)
+          if (owned.length === 0) return
+
+          const otherAdmin = await db
+            .select({ id: schema.user.id })
+            .from(schema.user)
+            .where(and(eq(schema.user.role, 'admin'), ne(schema.user.id, user.id)))
+            .limit(1)
+          if (otherAdmin.length === 0) {
+            throw new APIError('BAD_REQUEST', {
+              message:
+                'This is the only admin account and it has moderation history. Make someone else an admin before deleting it.',
+            })
+          }
+          await db
+            .update(schema.removedEvents)
+            .set({ removedBy: otherAdmin[0].id })
+            .where(eq(schema.removedEvents.removedBy, user.id))
+        },
       },
       additionalFields: {
         role: {

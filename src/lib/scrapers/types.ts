@@ -7,7 +7,7 @@ export interface Event {
   time: string
   link: string
   description?: string
-  category?: string | string[] // Support both single and multiple categories
+  category?: string | Array<string> // Support both single and multiple categories
   image?: string
   venue?: string
   price?: string
@@ -15,7 +15,7 @@ export interface Event {
 }
 
 export interface ScraperResult {
-  events: Event[]
+  events: Array<Event>
   metadata?: {
     month?: string
     year?: string

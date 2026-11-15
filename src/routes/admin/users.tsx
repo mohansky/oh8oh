@@ -1,6 +1,7 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Shield, UserCog, User as UserIcon } from 'lucide-react'
 import {
   Table,
@@ -81,6 +82,45 @@ const getAllUsers = createServerFn({
   }
 })
 
+const ROLES = ['user', 'host', 'admin'] as const
+
+// Server function to change a user's role (admin only)
+const setUserRole = createServerFn({
+  method: 'POST',
+}).handler(async (ctx: any): Promise<{ success: boolean }> => {
+  const { userId, role } = ctx.data as { userId: string; role: User['role'] }
+
+  const { requireRole, headersFromCtx } = await import('../../lib/server/session')
+  const admin = await requireRole(headersFromCtx(ctx), ['admin'])
+
+  if (!ROLES.includes(role)) {
+    throw new Error('Invalid role')
+  }
+  // An admin demoting themselves could leave the app with no admin at all.
+  if (userId === admin.id) {
+    throw new Error('You cannot change your own role')
+  }
+
+  const { db } = await import('../../db')
+  const { user: userTable, session: sessionTable } = await import('../../db/schema')
+  const { eq } = await import('drizzle-orm')
+
+  const updated = await db
+    .update(userTable)
+    .set({ role, updatedAt: new Date() })
+    .where(eq(userTable.id, userId))
+    .returning({ id: userTable.id })
+  if (updated.length === 0) {
+    throw new Error('User not found')
+  }
+
+  // Sign the user out everywhere so the new role applies on their next
+  // sign-in, rather than whenever their cached session happens to refresh.
+  await db.delete(sessionTable).where(eq(sessionTable.userId, userId))
+
+  return { success: true }
+})
+
 export const Route = createFileRoute('/admin/users')({
   beforeLoad: async () => {
     // Check if user is admin
@@ -101,8 +141,26 @@ export const Route = createFileRoute('/admin/users')({
 
 function UsersPage() {
   const { users } = Route.useLoaderData()
+  const { user: currentUser } = Route.useRouteContext()
   const navigate = useNavigate()
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
+  const [savingUserId, setSavingUserId] = useState<string | null>(null)
+
+  const handleRoleChange = async (target: User, role: User['role']) => {
+    if (role === target.role) return
+    setSavingUserId(target.id)
+    try {
+      // @ts-ignore - Server function typing
+      await setUserRole({ data: { userId: target.id, role } })
+      toast.success(`${target.name} is now ${role === 'user' ? 'a user' : role === 'host' ? 'a host' : 'an admin'}`)
+      await router.invalidate()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to change role')
+    } finally {
+      setSavingUserId(null)
+    }
+  }
 
   // Filter users based on search
   const filteredUsers = users.filter(
@@ -184,13 +242,32 @@ function UsersPage() {
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={getRoleBadgeVariant(user.role)}
-                          className="flex items-center gap-1 w-fit"
-                        >
-                          {getRoleIcon(user.role)}
-                          {user.role}
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                          <Badge
+                            variant={getRoleBadgeVariant(user.role)}
+                            className="flex items-center gap-1 w-fit"
+                          >
+                            {getRoleIcon(user.role)}
+                            {user.role}
+                          </Badge>
+                          {user.id !== currentUser.id && (
+                            <select
+                              aria-label={`Change role for ${user.name}`}
+                              className="rounded-md border bg-background px-2 py-1 text-sm disabled:opacity-50"
+                              value={user.role}
+                              disabled={savingUserId === user.id}
+                              onChange={(e) =>
+                                handleRoleChange(user, e.target.value as User['role'])
+                              }
+                            >
+                              {ROLES.map((role) => (
+                                <option key={role} value={role}>
+                                  {role}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={user.emailVerified ? 'default' : 'secondary'}>

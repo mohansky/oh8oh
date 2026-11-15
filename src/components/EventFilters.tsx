@@ -1,8 +1,8 @@
 // import { Input } from '@/components/ui/input'
+import { RefreshCw, Search } from 'lucide-react'
 import { Button } from './ui/button'
 // import { Label } from './ui/label'
 import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group'
-import { Search, RefreshCw } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -20,8 +20,8 @@ interface EventFiltersProps {
   setDateFilter: (value: 'all' | 'today' | 'tomorrow' | 'weekend') => void
   categoryFilter: string
   setCategoryFilter: (value: string) => void
-  sources: string[]
-  categories: string[]
+  sources: Array<string>
+  categories: Array<string>
   filteredCount: number
   totalCount: number
   showSourceFilter?: boolean
@@ -34,6 +34,10 @@ interface EventFiltersProps {
 export function EventFilters({
   filter,
   setFilter,
+  sourceFilter,
+  setSourceFilter,
+  sources,
+  showSourceFilter = true,
   dateFilter,
   setDateFilter,
   categoryFilter,
@@ -71,10 +75,10 @@ export function EventFilters({
         </div>
       )}
 
-      {/* Search and Category Filter */}
-      <div className="flex gap-4 mt-4">
+      {/* Search, Category and Source filters */}
+      <div className="flex flex-wrap gap-4 mt-4">
         {/* Search */}
-        <InputGroup>
+        <InputGroup className="flex-1 min-w-60">
           <InputGroupInput
           type="text"
             placeholder="Search by title or venue..."
@@ -100,6 +104,22 @@ export function EventFilters({
             ))}
           </SelectContent>
         </Select>
+
+        {/* Source Filter */}
+        {showSourceFilter && sources.length > 2 && (
+          <Select value={sourceFilter} onValueChange={setSourceFilter}>
+            <SelectTrigger className="w-45" aria-label="Filter by source">
+              <SelectValue placeholder="Source" />
+            </SelectTrigger>
+            <SelectContent>
+              {sources.map((source) => (
+                <SelectItem key={source} value={source}>
+                  {source === 'all' ? 'All Sources' : source}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Date Filter Buttons */}

@@ -1,5 +1,6 @@
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
@@ -8,7 +9,6 @@ import {
   Preview,
   Section,
   Text,
-  Button,
 } from '@react-email/components'
 
 interface VerifyEmailProps {

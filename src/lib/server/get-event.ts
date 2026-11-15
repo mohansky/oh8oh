@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { Event } from '../scrapers'
+import type { Event } from '../scrapers'
 
 // Server function to get a single event by fingerprint
 export const getEventByFingerprint = createServerFn({

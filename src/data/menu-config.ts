@@ -1,12 +1,12 @@
 import {
-  Home,
-  Heart,
-  User,
-  Plus,
   Calendar,
   CheckCircle,
-  Users,
+  Heart,
+  Home,
+  Plus,
   Star,
+  User,
+  Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -16,11 +16,11 @@ export interface MenuItem {
   label: string
   path: string
   icon: LucideIcon
-  roles: UserRole[] // Empty array means accessible to all authenticated users
+  roles: Array<UserRole> // Empty array means accessible to all authenticated users
 }
 
 // Menu items configuration
-export const menuItems: MenuItem[] = [
+export const menuItems: Array<MenuItem> = [
   {
     label: 'Events',
     path: '/',
@@ -74,7 +74,7 @@ export const menuItems: MenuItem[] = [
 /**
  * Filter menu items based on user role
  */
-export function getMenuItemsForRole(userRole: UserRole): MenuItem[] {
+export function getMenuItemsForRole(userRole: UserRole): Array<MenuItem> {
   return menuItems.filter((item) => {
     // If no roles specified, show to all authenticated users
     if (item.roles.length === 0) return true

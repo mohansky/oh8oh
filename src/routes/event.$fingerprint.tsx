@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, notFound } from '@tanstack/react-router'
 import { ArrowLeft, Calendar, CalendarPlus, Clock, ExternalLink, MapPin, Share2, Ticket } from 'lucide-react'
 import { toast } from 'sonner'
 import { getEventByFingerprint } from '../lib/server/get-event'
@@ -17,10 +17,13 @@ export const Route = createFileRoute('/event/$fingerprint')({
     // @ts-ignore - Server function typing
     const event = await getEventByFingerprint({ data: params.fingerprint })
     if (!event) {
-      throw new Error('Event not found')
+      // Past events are pruned, so old shared links land here — show a
+      // friendly 404 rather than the generic error screen.
+      throw notFound()
     }
     return event
   },
+  notFoundComponent: EventNotFound,
   head: ({ loaderData }) => {
     if (!loaderData) return {}
 
@@ -85,6 +88,22 @@ export const Route = createFileRoute('/event/$fingerprint')({
     }
   },
 })
+
+function EventNotFound() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center px-6">
+      <div className="max-w-md text-center space-y-4">
+        <h1 className="text-3xl font-stackSansNotch">Event not found</h1>
+        <p className="text-muted-foreground">
+          This event may be over, or it is no longer listed by its organiser.
+        </p>
+        <Button asChild>
+          <Link to="/">See upcoming events</Link>
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 function EventPage() {
   const event = Route.useLoaderData()

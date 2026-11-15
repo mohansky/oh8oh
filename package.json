@@ -12,15 +12,13 @@
     "format": "prettier",
     "check": "prettier --write . && eslint --fix",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "powershell -ExecutionPolicy Bypass -File ./scripts/migrate.ps1",
-    "db:migrate:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/migrate.ps1 -Environment production",
+    "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "cf:deploy": "VITE_AUTH_URL=https://oh8oh.mohansky.workers.dev pnpm build && wrangler --cwd .output/ deploy",
     "cf:login": "wrangler login",
     "cf:whoami": "wrangler whoami"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.954.0",
     "@base-ui/react": "^1.0.0",
     "@better-auth/passkey": "^1.4.7",
     "@fontsource-variable/figtree": "^5.2.10",
@@ -33,10 +31,8 @@
     "@tanstack/react-form": "^1.27.4",
     "@tanstack/react-router": "^1.132.0",
     "@tanstack/react-router-devtools": "^1.132.0",
-    "@tanstack/react-router-ssr-query": "^1.131.7",
     "@tanstack/react-start": "^1.132.0",
     "@tanstack/router-plugin": "^1.132.0",
-    "axios": "^1.13.2",
     "better-auth": "^1.4.7",
     "cheerio": "^1.1.2",
     "class-variance-authority": "^0.7.1",
@@ -80,7 +76,6 @@
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.16",
-    "web-vitals": "^5.1.0",
     "workbox-window": "^7.4.0",
     "wrangler": "^4.54.0"
   }

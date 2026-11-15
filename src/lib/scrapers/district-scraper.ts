@@ -1,18 +1,242 @@
 import * as cheerio from 'cheerio'
+import { MONTH_MAP, inferEventYear } from '../utils/date-time'
 import { fetchRenderedHTML } from './browser-helper'
 import type { EventScraper, ScraperResult } from './types'
+
+type ScrapedEvent = ScraperResult['events'][number]
+
+// "Sun, 22 Nov" — District never prints the year.
+const DAY_MONTH = /([A-Za-z]{3}),\s+(\d{1,2})\s+([A-Za-z]{3,4})/g
+// What a card's date line starts with: a dated day, or a recurring schedule.
+const DATE_LINE = /^(?:[A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3}|Every\b|Daily\b)/i
+const PRICE_LINE = /^(?:₹|Free\b)/i
+
+// The Bengaluru listing also promotes big events elsewhere ("Vagator, Goa").
+const OTHER_CITIES = new Set([
+  'goa',
+  'mumbai',
+  'pune',
+  'delhi',
+  'new delhi',
+  'gurugram',
+  'gurgaon',
+  'noida',
+  'hyderabad',
+  'chennai',
+  'kolkata',
+  'kochi',
+  'jaipur',
+  'ahmedabad',
+  'chandigarh',
+  'lucknow',
+  'indore',
+  'shillong',
+  'guwahati',
+])
+
+/**
+ * Turn District's date line into a date (with a year) and a time.
+ *
+ *   "Sun, 22 Nov, 6:00 PM"                      → one day
+ *   "Sat, 05 Dec – Sun, 06 Dec, 1:00 PM"        → a range
+ *   "Fri, 25 Dec – Sun, 27 Dec, Multiple slots" → a range, no single time
+ *   "Every Sun, 12:00 PM to 4:00 PM"            → recurring: no calendar date
+ *   "Daily, 11:00 AM onwards"                   → recurring: no calendar date
+ *
+ * Recurring events keep their schedule ("Every Sun") as the date text. It
+ * isn't a parseable date, so the app treats them as undated and lists them
+ * for as long as District does.
+ */
+export function parseDistrictDate(
+  text: string,
+  now: Date = new Date(),
+): { date: string; time: string } {
+  const line = text.trim()
+  const days = [...line.matchAll(DAY_MONTH)]
+
+  const cleanTime = (raw: string) =>
+    raw
+      .replace(/^[,\s]+/, '')
+      .replace(/\s+to\s+/i, ' – ')
+      .trim() || 'Time TBA'
+
+  if (days.length === 0) {
+    // Recurring: everything before the first comma is the schedule.
+    const comma = line.indexOf(',')
+    if (comma === -1) return { date: line || 'Check website for dates', time: 'Time TBA' }
+    return {
+      date: line.slice(0, comma).trim(),
+      time: cleanTime(line.slice(comma)),
+    }
+  }
+
+  const withYear = (match: RegExpMatchArray, year: number) =>
+    `${match[1]}, ${match[2]} ${match[3]} ${year}`
+  const monthOf = (match: RegExpMatchArray) =>
+    MONTH_MAP[match[3].toLowerCase()] as number | undefined
+
+  const first = days[0]
+  const last = days[days.length - 1]
+  const firstMonth = monthOf(first)
+  const lastMonth = monthOf(last)
+  const time = cleanTime(line.slice(last.index + last[0].length))
+
+  if (firstMonth === undefined || lastMonth === undefined) {
+    // Unknown month abbreviation — pass the text through rather than guess.
+    return { date: line, time: 'Time TBA' }
+  }
+
+  const startYear = yearMatchingWeekday(
+    first[1],
+    firstMonth,
+    parseInt(first[2]),
+    inferEventYear(firstMonth, parseInt(first[2]), now),
+  )
+  if (days.length === 1) {
+    return { date: withYear(first, startYear), time }
+  }
+
+  // A range that runs past New Year ends in the following year.
+  const endYear = lastMonth < firstMonth ? startYear + 1 : startYear
+  return {
+    date: `${withYear(first, startYear)} – ${withYear(last, endYear)}`,
+    time,
+  }
+}
+
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+/**
+ * District prints the weekday, which pins down the year far better than a
+ * guess from today's date: "Sat, 12 Sep" is a Saturday in 2026 but not in
+ * 2027. Start from the inferred year and take the nearest year whose calendar
+ * agrees; if none does (unexpected text), keep the inferred one.
+ */
+function yearMatchingWeekday(
+  weekday: string,
+  monthIndex: number,
+  day: number,
+  inferredYear: number,
+): number {
+  const wanted = WEEKDAYS.indexOf(weekday.toLowerCase())
+  if (wanted === -1) return inferredYear
+  for (const year of [inferredYear, inferredYear - 1, inferredYear + 1]) {
+    if (new Date(Date.UTC(year, monthIndex, day)).getUTCDay() === wanted) {
+      return year
+    }
+  }
+  return inferredYear
+}
+
+function isOutsideBengaluru(venue: string): boolean {
+  const city = venue.split(',').pop()?.trim().toLowerCase() ?? ''
+  return OTHER_CITIES.has(city)
+}
+
+/**
+ * Extract events from the District listing HTML.
+ *
+ * The page renders each event up to twice, in two card layouts — a carousel
+ * card (venue, title, date; has the poster image) and a list card (date,
+ * title, venue, price). Each field is its own element, so read them
+ * individually and merge the two cards for the same link. Reading the card's
+ * text as one string glues the fields together ("…Raag MehfilDr. Ambedkar
+ * Bhavan") and only works when the date happens to come first.
+ */
+export function parseDistrictEvents(
+  html: string,
+  now: Date = new Date(),
+): Array<ScrapedEvent> {
+  const $ = cheerio.load(html)
+
+  interface Card {
+    title: string
+    dateLine: string
+    venue: string
+    price: string
+    image: string
+  }
+  const byLink = new Map<string, Card>()
+
+  $('.item-cards').each((_, element) => {
+    const $card = $(element)
+    const href = $card.closest('a').attr('href')
+    if (!href) return
+    const link = href.startsWith('http') ? href : `https://www.district.in${href}`
+
+    const card: Card = { title: '', dateLine: '', venue: '', price: '', image: '' }
+
+    // The title is the one "primary" text element (a span or an h5).
+    card.title = $card.find('.dds-text-primary, h5').first().text().trim()
+
+    $card.find('span').each((_i, span) => {
+      const $span = $(span)
+      if ($span.hasClass('dds-text-primary')) return
+      const text = $span.text().trim()
+      if (!text) return
+      if (PRICE_LINE.test(text)) card.price ||= text
+      else if (DATE_LINE.test(text)) card.dateLine ||= text
+      else card.venue ||= text
+    })
+
+    const background = $card
+      .html()
+      ?.match(/background-image:\s*url\(['"&]*(https:\/\/[^'"&)]+)/)
+    card.image =
+      $card.find('video').first().attr('poster') ||
+      $card.find('img').first().attr('src') ||
+      $card.find('img').first().attr('data-src') ||
+      background?.[1] ||
+      ''
+
+    // Fill in whatever the other card for this event didn't have.
+    const existing = byLink.get(link)
+    if (!existing) {
+      byLink.set(link, card)
+      return
+    }
+    existing.title ||= card.title
+    existing.dateLine ||= card.dateLine
+    existing.venue ||= card.venue
+    existing.price ||= card.price
+    existing.image ||= card.image
+  })
+
+  const events: Array<ScrapedEvent> = []
+  for (const [link, card] of byLink) {
+    if (card.title.length < 3) continue
+    if (isOutsideBengaluru(card.venue)) continue
+
+    const { date, time } = card.dateLine
+      ? parseDistrictDate(card.dateLine, now)
+      : { date: 'Check website for dates', time: 'Time TBA' }
+
+    events.push({
+      title: card.title,
+      date,
+      time,
+      link,
+      description: '',
+      category: 'Music',
+      image: card.image,
+      venue: card.venue || 'Check event website',
+      price: card.price || 'Check website for price',
+      source: 'District',
+    })
+  }
+
+  return events
+}
 
 export const districtScraper: EventScraper = {
   id: 'district',
   name: 'District',
   website: 'https://www.district.in',
-  enabled: true, // Enabled - tested and working
+  enabled: true,
   priority: 'low', // Uses Puppeteer, so low priority
 
   scrape: async (env?: any): Promise<ScraperResult> => {
     try {
-      const events: ScraperResult['events'] = []
-
       // Fetch the music events page for Bengaluru using Puppeteer
       const url = 'https://www.district.in/events/music-in-bengaluru-book-tickets'
       console.log(`🎵 Fetching District music events from ${url}...`)
@@ -29,166 +253,10 @@ export const districtScraper: EventScraper = {
         return { events: [] }
       }
 
-      const $ = cheerio.load(html)
-
-      // District has event cards with class "item-cards" (note: plural)
-      // Each card contains an <a> tag with all the event info
-      const $eventCards = $('.item-cards')
-      console.log(`District: Found ${$eventCards.length} event cards`)
-
-      if ($eventCards.length === 0) {
-        console.log('District: No event cards found')
-        console.log('District: Page title:', $('title').text())
-        return { events: [] }
+      const events = parseDistrictEvents(html)
+      if (events.length === 0) {
+        console.log('District: No events parsed from page')
       }
-
-      // Track seen links to avoid duplicates
-      const seenLinks = new Set<string>()
-
-      // Process each event card
-      $eventCards.each((_, element) => {
-        const $card = $(element)
-        // The <a> tag is the parent of .item-cards
-        const $link = $card.closest('a')
-        if ($link.length === 0) return
-
-        const link = $link.attr('href') || ''
-        if (!link) return
-
-        // Skip duplicates
-        if (seenLinks.has(link)) return
-        seenLinks.add(link)
-
-        // The link text contains all info concatenated: "Day, DD Mon, HH:MM PMTitleVenue, City₹PRICEBook tickets"
-        // Example: "Tue, 23 Dec, 7:00 PMAbove & Beyond x SourberryCavore, Bengaluru₹6500Book tickets"
-        const fullText = $link.text().trim()
-
-        // Extract date and time (at the beginning)
-        // Pattern: "Day, DD Mon, HH:MM PM" or "Day, DD Mon – Day, DD Mon, HH:MM PM" (for multi-day)
-        const dateTimeMatch = fullText.match(/^([A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3}(?:\s+–\s+[A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3})?,\s+\d{1,2}:\d{2}\s+[AP]M)/)
-        const dateTime = dateTimeMatch ? dateTimeMatch[1] : ''
-
-        // Split date and time
-        let date = ''
-        let time = ''
-        if (dateTime) {
-          const timeMatch = dateTime.match(/(\d{1,2}:\d{2}\s+[AP]M)$/)
-          time = timeMatch ? timeMatch[1] : 'Time TBA'
-          const dateWithoutTime = dateTime.replace(/,\s+\d{1,2}:\d{2}\s+[AP]M$/, '').trim()
-
-          // Add year to the date since District doesn't include it
-          // Format is "Day, DD Mon" or "Day, DD Mon – Day, DD Mon"
-          // If month is Dec and we're in Dec, use current year, otherwise next year
-          // If month is Jan-Nov, use next year
-          const currentDate = new Date()
-          const currentYear = currentDate.getFullYear()
-          const currentMonth = currentDate.getMonth()
-
-          // Extract month from date string
-          const monthMatch = dateWithoutTime.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i)
-          if (monthMatch) {
-            const month = monthMatch[1]
-            const monthNum = new Date(`${month} 1, 2000`).getMonth()
-
-            // If the event month is before the current month, it must be next year
-            // If event month is current month or later, check if it's already passed
-            let year = currentYear
-            if (monthNum < currentMonth) {
-              year = currentYear + 1
-            } else if (monthNum === currentMonth) {
-              // Same month - check day
-              const dayMatch = dateWithoutTime.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i)
-              if (dayMatch) {
-                const day = parseInt(dayMatch[1])
-                if (day < currentDate.getDate()) {
-                  year = currentYear + 1
-                }
-              }
-            }
-
-            date = `${dateWithoutTime} ${year}`
-          } else {
-            date = dateWithoutTime
-          }
-        }
-
-        // Extract price (₹ followed by digits, before "Book tickets")
-        const priceMatch = fullText.match(/₹([\d,]+(?:\s+onwards)?)(?=Book tickets)/i)
-        const price = priceMatch ? `₹${priceMatch[1]}` : 'Check website for price'
-
-        // Extract venue and title
-        // Remove the date/time prefix and the price/Book tickets suffix
-        let remainingText = fullText
-        if (dateTime) {
-          remainingText = remainingText.replace(dateTime, '').trim()
-        }
-        // Remove the entire price section including "₹...Book tickets" or "₹..." at the end
-        remainingText = remainingText.replace(/₹[\d,]+(?:\s+onwards)?(?:Book tickets)?$/i, '').trim()
-
-        // Pattern: "TitleVenue Name, City" or "TitleCity"
-        // The city is at the very end, preceded by a comma and optional venue
-        let title = ''
-        let venue = 'Check event website'
-
-        // Try to find city at the end
-        const cityMatch = remainingText.match(/^(.+?),\s*(Bengaluru|Bangalore|Hosur)$/i)
-        if (cityMatch) {
-          const beforeCity = cityMatch[1]
-          const city = cityMatch[2]
-
-          // Check if there's another comma (title, venue, city pattern)
-          const lastCommaIndex = beforeCity.lastIndexOf(',')
-          if (lastCommaIndex > 0) {
-            // Pattern: "Title, Venue, City"
-            title = beforeCity.substring(0, lastCommaIndex).trim()
-            venue = beforeCity.substring(lastCommaIndex + 1).trim() + ', ' + city
-          } else {
-            // Pattern: "Title, City" or "TitleVenue, City"
-            // Try to detect if venue is concatenated with title
-            // Common venue patterns: ends with specific venue names or contains "Venue to be announced"
-            if (beforeCity.includes('Venue to be announced')) {
-              title = beforeCity.replace('Venue to be announced', '').trim()
-              venue = 'Venue to be announced, ' + city
-            } else {
-              // Assume everything before city is the title
-              title = beforeCity.trim()
-              venue = 'Check event website'
-            }
-          }
-        } else {
-          // No city found, use entire text as title
-          title = remainingText.trim()
-        }
-
-        if (!title || title.length < 3) return
-
-        // Get image from background-image style if available
-        let image = ''
-        const bgImageMatch = $card.html()?.match(/background-image:\s*url\(['"&]*(https:\/\/[^'"&]+)['"&]*\)/)
-        if (bgImageMatch) {
-          image = bgImageMatch[1]
-        }
-        // Fallback to img tag
-        if (!image) {
-          image = $card.find('img').first().attr('src') ||
-                  $card.find('img').first().attr('data-src') || ''
-        }
-
-        // Add event
-        events.push({
-          title,
-          date: date || 'Check website for dates',
-          time: time || 'Time TBA',
-          link: link.startsWith('http') ? link : `https://www.district.in${link}`,
-          description: '',
-          category: 'Music',
-          image,
-          venue,
-          price,
-          source: 'District',
-        })
-      })
-
       console.log(`District: Successfully scraped ${events.length} music events`)
 
       return {

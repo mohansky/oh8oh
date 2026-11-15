@@ -1,0 +1,143 @@
+import { describe, expect, it } from 'vitest'
+import {
+  hasEventEnded,
+  inferEventYear,
+  isToday,
+  isTomorrow,
+  isWeekend,
+  parseEventDate,
+  parseEventEndDate,
+} from './date-time'
+
+// Build an instant from a Bangalore wall-clock time, so the tests read in IST
+// and pass regardless of the timezone of the machine running them.
+const ist = (isoLocal: string) => new Date(`${isoLocal}+05:30`)
+
+const ymd = (date: Date | null) =>
+  date && [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+
+describe('parseEventDate', () => {
+  it('reads the formats the scrapers produce', () => {
+    expect(ymd(parseEventDate('Sat 14 Nov 2026'))).toEqual([2026, 11, 14])
+    expect(ymd(parseEventDate('Saturday, Nov 14 2026'))).toEqual([2026, 11, 14])
+    expect(ymd(parseEventDate('November 14, 2026'))).toEqual([2026, 11, 14])
+    expect(ymd(parseEventDate('06 Nov 2026, 4:00 pm – 7:00 pm'))).toEqual([2026, 11, 6])
+  })
+
+  it('reads BIC dates where the time is glued to the year', () => {
+    expect(ymd(parseEventDate('Tue, 24 Mar 20266:30 pm — 8:00 pm'))).toEqual([2026, 3, 24])
+  })
+
+  it('reads the four-letter "Sept" abbreviation', () => {
+    expect(ymd(parseEventDate('13 Sept 2026, 6:00 pm – 8:30 pm'))).toEqual([2026, 9, 13])
+  })
+
+  it('returns null when there is no date', () => {
+    expect(parseEventDate('Check website for dates')).toBeNull()
+    expect(parseEventDate('')).toBeNull()
+  })
+})
+
+describe('parseEventEndDate', () => {
+  it('returns the end of a date range', () => {
+    expect(ymd(parseEventEndDate('Jul 16 - Jul 30 2026'))).toEqual([2026, 7, 30])
+    expect(ymd(parseEventEndDate('Aug 15, 2026 - Nov 1, 2026'))).toEqual([2026, 11, 1])
+    expect(ymd(parseEventEndDate('Dec 28 2026 - Jan 3 2027'))).toEqual([2027, 1, 3])
+  })
+
+  it('does not mistake a time range for a date range', () => {
+    expect(ymd(parseEventEndDate('06 Nov 2026, 4:00 pm – 7:00 pm'))).toEqual([2026, 11, 6])
+  })
+
+  it('matches parseEventDate for a single day', () => {
+    expect(ymd(parseEventEndDate('Sat 14 Nov 2026'))).toEqual([2026, 11, 14])
+  })
+})
+
+describe('hasEventEnded', () => {
+  const now = ist('2026-11-15T10:00')
+
+  it('is true for a past day and false for today or later', () => {
+    expect(hasEventEnded('Sat 14 Nov 2026', now)).toBe(true)
+    expect(hasEventEnded('Sun 15 Nov 2026', now)).toBe(false)
+    expect(hasEventEnded('Mon 16 Nov 2026', now)).toBe(false)
+  })
+
+  it('keeps an event listed through the whole of its day', () => {
+    expect(hasEventEnded('Sun 15 Nov 2026', ist('2026-11-15T23:59'))).toBe(false)
+    expect(hasEventEnded('Sun 15 Nov 2026', ist('2026-11-16T00:01'))).toBe(true)
+  })
+
+  it('uses Bangalore time, not UTC, around midnight', () => {
+    // 00:30 IST on the 15th is still the 14th in UTC.
+    expect(hasEventEnded('Sat 14 Nov 2026', ist('2026-11-15T00:30'))).toBe(true)
+  })
+
+  it('judges a range by its end date', () => {
+    expect(hasEventEnded('Jul 16 - Jul 30 2026', now)).toBe(true)
+    expect(hasEventEnded('Nov 10 - Nov 30 2026', now)).toBe(false)
+  })
+
+  it('never treats an undated event as ended', () => {
+    expect(hasEventEnded('Check website for dates', now)).toBe(false)
+  })
+})
+
+describe('isToday / isTomorrow', () => {
+  const now = ist('2026-11-15T00:30') // a Sunday
+
+  it('matches the Bangalore calendar day', () => {
+    expect(isToday('Sun 15 Nov 2026', now)).toBe(true)
+    expect(isToday('Sat 14 Nov 2026', now)).toBe(false)
+    expect(isTomorrow('Mon 16 Nov 2026', now)).toBe(true)
+    expect(isTomorrow('Sun 15 Nov 2026', now)).toBe(false)
+  })
+
+  it('is false for undated events', () => {
+    expect(isToday('Check website for dates', now)).toBe(false)
+    expect(isTomorrow('Check website for dates', now)).toBe(false)
+  })
+})
+
+describe('isWeekend', () => {
+  it('on a weekday, means the coming Saturday and Sunday', () => {
+    const wednesday = ist('2026-11-11T10:00')
+    expect(isWeekend('Sat 14 Nov 2026', wednesday)).toBe(true)
+    expect(isWeekend('Sun 15 Nov 2026', wednesday)).toBe(true)
+    expect(isWeekend('Fri 13 Nov 2026', wednesday)).toBe(false)
+    expect(isWeekend('Sat 21 Nov 2026', wednesday)).toBe(false)
+  })
+
+  it('on a Saturday, means today and tomorrow', () => {
+    const saturday = ist('2026-11-14T10:00')
+    expect(isWeekend('Sat 14 Nov 2026', saturday)).toBe(true)
+    expect(isWeekend('Sun 15 Nov 2026', saturday)).toBe(true)
+  })
+
+  it('on a Sunday, means today only', () => {
+    const sunday = ist('2026-11-15T10:00')
+    expect(isWeekend('Sun 15 Nov 2026', sunday)).toBe(true)
+    expect(isWeekend('Sat 21 Nov 2026', sunday)).toBe(false)
+  })
+})
+
+describe('inferEventYear', () => {
+  const now = ist('2026-11-15T10:00')
+
+  it('uses this year for dates still ahead', () => {
+    expect(inferEventYear(11, 5, now)).toBe(2026) // 5 Dec
+  })
+
+  it('uses next year for dates long past', () => {
+    expect(inferEventYear(2, 20, now)).toBe(2027) // 20 Mar
+  })
+
+  it('keeps a recently finished event in this year', () => {
+    expect(inferEventYear(10, 14, now)).toBe(2026) // 14 Nov, yesterday
+    expect(inferEventYear(9, 18, now)).toBe(2026) // 18 Oct, four weeks ago
+  })
+
+  it('reads late December as last year when seen in early January', () => {
+    expect(inferEventYear(11, 30, ist('2027-01-02T10:00'))).toBe(2026)
+  })
+})

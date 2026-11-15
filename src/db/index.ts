@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/libsql/http'
-import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import * as schema from './schema'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 
 function getEnv(key: string): string | undefined {
   // Check process.env first (works in Node/dev)

@@ -1,4 +1,4 @@
-import { Event } from '../scrapers/types'
+import type { Event } from '../scrapers/types'
 
 /**
  * Simple string hash that produces a URL-safe alphanumeric string.
@@ -33,23 +33,8 @@ export function generateEventFingerprint(event: Event): string {
  */
 export async function hashEventFingerprint(fingerprint: string): Promise<string> {
   // Use Node.js crypto module (server-side)
-  const crypto = await import('crypto')
+  const crypto = await import('node:crypto')
   const hash = crypto.createHash('sha256')
   hash.update(fingerprint)
   return hash.digest('hex')
-}
-
-/**
- * Get a unique ID for an event (uses hash on server, fingerprint on client)
- */
-export async function getEventId(event: Event): Promise<string> {
-  const fingerprint = generateEventFingerprint(event)
-
-  // If we have a user-submitted event with an ID, use that
-  if (event.id) {
-    return event.id
-  }
-
-  // Otherwise, hash the fingerprint
-  return await hashEventFingerprint(fingerprint)
 }

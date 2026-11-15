@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio'
 import { categorizeEvent } from '../utils/categorize-event'
+import { MONTH_MAP, inferEventYear } from '../utils/date-time'
 import type { EventScraper, ScraperResult } from './types'
 
 /**
@@ -73,23 +74,19 @@ export const urbanautScraper: EventScraper = {
         const venue = dateTimes[1] || 'Check event website'
 
         // Add a year to dates like "Saturday, Jul 18" (Urbanaut omits it)
+        // The year goes on the end, so for a range ("Oct 18 - Dec 20") it is
+        // the END date's year that has to be right — infer from the last
+        // "Mon DD" in the string.
         if (date && !/\d{4}/.test(date)) {
-          const now = new Date()
-          const monthMatch = date.match(
-            /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i,
-          )
-          if (monthMatch) {
-            const monthNum = new Date(`${monthMatch[1]} 1, 2000`).getMonth()
-            let year = now.getFullYear()
-            if (monthNum < now.getMonth()) {
-              year = now.getFullYear() + 1
-            } else if (monthNum === now.getMonth()) {
-              const dayMatch = date.match(/\b(\d{1,2})\b/)
-              if (dayMatch && parseInt(dayMatch[1]) < now.getDate()) {
-                year = now.getFullYear() + 1
-              }
-            }
-            date = `${date} ${year}`
+          const monthDays = [
+            ...date.matchAll(
+              /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})\b/gi,
+            ),
+          ]
+          const last = monthDays.at(-1)
+          if (last) {
+            const monthNum = MONTH_MAP[last[1].toLowerCase()]
+            date = `${date} ${inferEventYear(monthNum, parseInt(last[2]))}`
           }
         }
 

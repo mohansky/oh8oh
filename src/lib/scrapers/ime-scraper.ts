@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio'
-import { EventScraper, ScraperResult } from './types'
 import { categorizeEvent } from '../utils/categorize-event'
 import { cleanTimeString } from '../utils/date-time'
+import type { EventScraper, ScraperResult } from './types'
 
 export const imeScraper: EventScraper = {
   id: 'indian-music-experience',

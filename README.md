@@ -1,238 +1,112 @@
-# oh8oh - Bangalore Events Aggregator
+# oh8oh — Bangalore events aggregator
 
-A Progressive Web App for discovering and exploring upcoming events in Bangalore. Built with TanStack Start and deployed on Cloudflare Workers.
+A Progressive Web App that collects upcoming events in Bangalore from venue and
+ticketing sites into one list. Built with TanStack Start and deployed on
+Cloudflare Workers.
+
+Live: https://oh8oh.mohansky.workers.dev
 
 ## Features
 
-- Browse upcoming events in Bangalore
-- Filter events by date, category, and source
-- Save events to bookmarks
-- Add custom events
-- Calendar view
-- Featured events section
-- PWA support with offline functionality
-- Dark mode support
-- Admin dashboard for event management
+- One list of upcoming events, scraped daily from nine sources and de-duplicated
+- Search, and filters for today / tomorrow / this weekend and category
+- Calendar view, featured events, shareable event pages, add-to-calendar (.ics)
+- Accounts with email verification; bookmarks
+- Hosts can submit events, which admins review before they are listed
+- Installable PWA with dark mode
 
-## Tech Stack
+## Tech stack
 
-### Frontend
-- **Framework**: TanStack Start (React SSR)
-- **Styling**: Tailwind CSS 4.0
-- **UI Components**: Radix UI, Lucide Icons
-- **Forms**: TanStack Form
-- **Routing**: TanStack Router
-- **State Management**: React Hooks
-- **PWA**: vite-plugin-pwa with Workbox
+| | |
+| --- | --- |
+| Framework | TanStack Start (React 19 SSR) and TanStack Router |
+| Runtime | Cloudflare Workers via Nitro (`cloudflare-module` preset) |
+| Database | Turso (libSQL) with Drizzle ORM |
+| Auth | Better Auth (email + password, verification emails via Resend) |
+| Storage | Cloudflare R2 for uploaded event images |
+| Scraping | cheerio for static pages, Cloudflare Browser Rendering for JS-rendered ones |
+| UI | Tailwind CSS 4, shadcn/ui (Radix), vite-plugin-pwa |
 
-### Backend
-- **Runtime**: Cloudflare Workers
-- **Server**: Nitro (cloudflare-module preset)
-- **Database**: Cloudflare D1 (SQLite)
-- **ORM**: Drizzle ORM
-- **Storage**: Cloudflare R2
-- **Authentication**: Better Auth with Passkey support
-- **Web Scraping**: Cloudflare Browser Rendering API
+## Getting started
 
-### Development
-- **Build Tool**: Vite 7
-- **Package Manager**: pnpm
-- **Testing**: Vitest
-- **Linting**: ESLint
-- **Formatting**: Prettier
+Requires Node.js 20+ and pnpm.
 
-## Prerequisites
-
-- Node.js 18+ and pnpm
-- Cloudflare account (free tier works for development)
-- Wrangler CLI (installed via dev dependencies)
-
-## Setup
-
-### 1. Clone and Install
-
-\`\`\`bash
-git clone <repository-url>
+```bash
+git clone https://github.com/mohansky/oh8oh.git
 cd oh8oh
 pnpm install
-\`\`\`
+cp .env.example .env.local   # then fill in the values
+pnpm dev                     # http://localhost:3000
+```
 
-### 2. Environment Configuration
+You need a [Turso](https://turso.tech) database and a
+[Resend](https://resend.com) API key at minimum; `.env.example` lists every
+variable.
 
-Copy the example environment file:
+### Database
 
-\`\`\`bash
-cp .env.example .env.local
-\`\`\`
+The schema lives in `src/db/schema.ts` and migrations in `drizzle/`.
 
-Update \`.env.local\` with your configuration:
+```bash
+pnpm db:generate   # create a migration after changing the schema
+pnpm db:migrate    # apply migrations to the Turso database
+pnpm db:studio     # browse the data
+```
 
-\`\`\`env
-NODE_ENV=development
-BETTER_AUTH_SECRET=your-secret-here
-BETTER_AUTH_URL=http://localhost:3000
-\`\`\`
+drizzle-kit reads `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` from the shell
+environment, so export them before running these.
 
-### 3. Database Setup
+### Two ways to run locally
 
-Create and migrate the database:
+- `pnpm dev` — Vite dev server with hot reload. No Cloudflare bindings, so
+  image uploads (R2) and the browser-based scrapers are unavailable.
+- `pnpm build && pnpm dev:wrangler` — runs the production build in Wrangler
+  with real bindings.
 
-\`\`\`bash
-# Generate migration files
-pnpm db:generate
+## Scripts
 
-# Create D1 database in Cloudflare (if not exists)
-wrangler d1 create oh8oh-db-dev
-
-# Run migrations locally
-wrangler d1 execute oh8oh-db-dev --local --file=./drizzle/0000_migration.sql
-
-# For production
-pnpm db:migrate:prod
-\`\`\`
-
-### 4. Cloudflare Bindings
-
-Update \`wrangler.toml\` with your Cloudflare IDs:
-
-- \`account_id\`: Your Cloudflare account ID
-- \`database_id\`: Your D1 database ID (from step 3)
-- Create R2 bucket: \`wrangler r2 bucket create event-app\`
-- Enable Browser Rendering in Cloudflare dashboard
-
-## Development
-
-### Regular Development (Fast, no bindings)
-
-Best for UI work and frontend features:
-
-\`\`\`bash
-pnpm dev
-\`\`\`
-
-Runs on http://localhost:3000 with hot reload.
-
-**Note**: Database, R2, and Browser Rendering won't work in this mode.
-
-### Wrangler Development (With Cloudflare bindings)
-
-For testing with full Cloudflare features:
-
-\`\`\`bash
-pnpm build
-pnpm dev:wrangler
-\`\`\`
-
-This mode includes D1, R2, and Browser Rendering bindings.
-
-See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for detailed development workflows.
-
-## Available Scripts
-
-\`\`\`bash
-pnpm dev              # Start dev server
-pnpm dev:wrangler     # Start with Cloudflare bindings
-pnpm build            # Build for production
-pnpm preview          # Preview production build
-pnpm test             # Run tests
-pnpm lint             # Lint code
-pnpm format           # Format code
-pnpm check            # Format and lint
-
-# Database
-pnpm db:generate      # Generate migrations
-pnpm db:migrate       # Run migrations (dev)
-pnpm db:migrate:prod  # Run migrations (production)
-pnpm db:studio        # Open Drizzle Studio
-
-# Cloudflare
-pnpm cf:deploy        # Deploy to Cloudflare
-pnpm cf:deploy:prod   # Deploy to production
-pnpm cf:login         # Login to Cloudflare
-pnpm cf:whoami        # Check Cloudflare account
-\`\`\`
+```bash
+pnpm dev            # dev server
+pnpm build          # production build to .output/
+pnpm dev:wrangler   # run the build in Wrangler
+pnpm test           # unit tests (Vitest)
+pnpm lint           # ESLint
+pnpm check          # Prettier + ESLint --fix
+pnpm cf:deploy      # build and deploy to Cloudflare
+```
 
 ## Deployment
 
-### First Time Setup
+1. `pnpm cf:login`
+2. Create the R2 bucket named in `wrangler.toml` and enable Browser Rendering.
+3. Set the secrets:
 
-1. Login to Cloudflare:
+   ```bash
+   wrangler secret put BETTER_AUTH_SECRET
+   wrangler secret put BETTER_AUTH_URL      # the production URL
+   wrangler secret put TURSO_DATABASE_URL
+   wrangler secret put TURSO_AUTH_TOKEN
+   wrangler secret put RESEND_API_KEY
+   wrangler secret put RESEND_FROM_EMAIL
+   ```
 
-\`\`\`bash
-pnpm cf:login
-\`\`\`
+4. `pnpm cf:deploy`
 
-2. Set production secrets:
+A Cron Trigger (see `wrangler.toml`) runs the full scrape daily at 03:00 IST.
+Between those runs, page loads trigger a lighter refresh of the fast sources at
+most every 30 minutes.
 
-\`\`\`bash
-wrangler secret put BETTER_AUTH_SECRET
-wrangler secret put SESSION_SECRET
-wrangler secret put BETTER_AUTH_URL  # Your production URL
-\`\`\`
+## How it works
 
-3. Create production database:
+Each source has a scraper in `src/lib/scrapers/`. Results are de-duplicated
+across sources and stored in the `events` table; pages always read from the
+database, never from the source sites directly. Events that have ended are
+filtered out and later pruned.
 
-\`\`\`bash
-wrangler d1 create oh8oh-db-prod
-\`\`\`
-
-Update \`wrangler.toml\` with the production database ID.
-
-### Deploy
-
-\`\`\`bash
-# Deploy to preview
-pnpm cf:deploy
-
-# Deploy to production
-pnpm cf:deploy:prod
-\`\`\`
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
-
-## Project Structure
-
-\`\`\`
-oh8oh/
-├── src/
-│   ├── components/       # React components
-│   ├── routes/          # TanStack Router routes
-│   ├── db/              # Database schema and client
-│   ├── lib/             # Utilities and helpers
-│   │   └── scrapers/    # Event scrapers
-│   ├── hooks/           # Custom React hooks
-│   ├── providers/       # React context providers
-│   ├── types/           # TypeScript types
-│   └── styles.css       # Global styles
-├── public/              # Static assets
-├── drizzle/            # Database migrations
-├── scripts/            # Build and deployment scripts
-├── .env.example        # Environment template
-├── wrangler.toml       # Cloudflare configuration
-├── nitro.config.ts     # Nitro server config
-├── vite.config.ts      # Vite build config
-└── drizzle.config.ts   # Drizzle ORM config
-\`\`\`
-
-## Documentation
-
-- [Local Development Guide](./LOCAL_DEVELOPMENT.md)
-- [Deployment Guide](./DEPLOYMENT.md)
-- [Browser Rendering API](./BROWSER_RENDERING.md)
-- [Migration Checklist](./MIGRATION_CHECKLIST.md)
-
-## Features in Development
-
-- Email notifications for event updates
-- User event submissions
-- Event recommendations
-- Social sharing
-- Multiple city support
+- [SCRAPERS.md](./SCRAPERS.md) — the sources and how each is scraped
+- [src/lib/scrapers/README.md](./src/lib/scrapers/README.md) — adding a scraper
+- [CLAUDE.md](./CLAUDE.md) — architecture notes and gotchas
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.

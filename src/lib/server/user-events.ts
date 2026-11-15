@@ -122,39 +122,6 @@ export const createUserEvent = createServerFn({
   }
 })
 
-// Get all approved user events
-export const getApprovedUserEvents = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  try {
-    const { db } = await import('../../db')
-    const { userEvents } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const events = await db
-      .select()
-      .from(userEvents)
-      .where(eq(userEvents.status, 'approved'))
-
-    // Convert to Event format
-    return events.map((event) => ({
-      title: event.title,
-      date: event.date,
-      time: event.time,
-      link: event.link,
-      description: event.description || '',
-      category: event.category || '',
-      image: event.image || '',
-      venue: event.venue || '',
-      price: event.price || '',
-      source: 'user-submitted',
-    }))
-  } catch (error) {
-    console.error('Failed to get approved user events:', error)
-    return []
-  }
-})
-
 // Get all featured events (approved and featured)
 export const getFeaturedEvents = createServerFn({
   method: 'GET',
@@ -483,35 +450,6 @@ export const adminDeleteEvent = createServerFn({
   }
 })
 
-// Admin: Remove event from main list (unapprove)
-export const removeEventFromList = createServerFn({
-  method: 'POST',
-}).handler(async (ctx: any): Promise<{ success: boolean }> => {
-  const { eventId } = ctx.data as { eventId: string }
-
-  try {
-    await requireRole(headersFromCtx(ctx), ['admin'])
-
-    const { db } = await import('../../db')
-    const { userEvents } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    // Update event status to pending (sends it back to review)
-    await db
-      .update(userEvents)
-      .set({
-        status: 'pending',
-        updatedAt: new Date(),
-      })
-      .where(eq(userEvents.id, eventId))
-
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to remove event from list:', error)
-    throw error
-  }
-})
-
 // Admin: Mark any event (scraped or user-submitted) as removed
 export const markEventAsRemoved = createServerFn({
   method: 'POST',
@@ -593,22 +531,5 @@ export const markEventAsRemoved = createServerFn({
   } catch (error) {
     console.error('Failed to mark event as removed:', error)
     throw error
-  }
-})
-
-// Get all removed event fingerprints (for filtering)
-export const getRemovedEventFingerprints = createServerFn({
-  method: 'GET',
-}).handler(async (): Promise<Array<string>> => {
-  try {
-    const { db } = await import('../../db')
-    const { removedEvents } = await import('../../db/schema')
-
-    const removed = await db.select().from(removedEvents)
-
-    return removed.map((r) => r.eventFingerprint)
-  } catch (error) {
-    console.error('Failed to get removed events:', error)
-    return []
   }
 })

@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useRouter } from '@tanstack/react-router'
+import { getDayName, getMonthCalendar, getMonthName, parseEventDateToDate } from '../lib/utils/calendar'
+import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { Event } from '../lib/scrapers/types'
-import { getMonthCalendar, getMonthName, getDayName, parseEventDateToDate } from '../lib/utils/calendar'
-import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
-import { useRouter } from '@tanstack/react-router'
+import type { Event } from '../lib/scrapers/types'
 
 interface CalendarProps {
-  events: Event[]
+  events: Array<Event>
 }
 
 export function Calendar({ events }: CalendarProps) {
@@ -21,7 +21,7 @@ export function Calendar({ events }: CalendarProps) {
   const weeks = getMonthCalendar(currentYear, currentMonth)
 
   // Group events by date
-  const eventsByDate = new Map<string, Event[]>()
+  const eventsByDate = new Map<string, Array<Event>>()
   events.forEach((event) => {
     const eventDate = parseEventDateToDate(event.date)
     if (eventDate) {

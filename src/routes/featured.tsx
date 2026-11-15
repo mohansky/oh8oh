@@ -1,11 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { Star } from 'lucide-react'
 import { getFeaturedEvents } from '../lib/server/user-events'
 import { EventCard } from '../components/EventCard'
 import { EventCardSkeleton } from '../components/EventCardSkeleton'
-import type { Event } from '../lib/scrapers/types'
 import { normalizeCategories } from '../lib/utils/categorize-event'
-import { isUpcomingEvent, compareEventDateTimes } from '../lib/utils/date-time'
-import { Star } from 'lucide-react'
+import { compareEventDateTimes, isUpcomingEvent } from '../lib/utils/date-time'
+import type { Event } from '../lib/scrapers/types'
 
 function LoadingComponent() {
   return (
@@ -45,7 +45,7 @@ function FeaturedEventsPage() {
     .sort((a: Event, b: Event) => compareEventDateTimes(a, b))
 
   // Group events by category
-  const eventsByCategory: Record<string, Event[]> = {}
+  const eventsByCategory: Record<string, Array<Event>> = {}
 
   upcomingFeaturedEvents.forEach((event: Event) => {
     const categories = normalizeCategories(event.category)

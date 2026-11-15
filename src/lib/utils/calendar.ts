@@ -7,7 +7,7 @@ export interface CalendarDay {
   dayNumber: number
 }
 
-export function getMonthCalendar(year: number, month: number): CalendarDay[][] {
+export function getMonthCalendar(year: number, month: number): Array<Array<CalendarDay>> {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
   const today = new Date()
@@ -21,8 +21,8 @@ export function getMonthCalendar(year: number, month: number): CalendarDay[][] {
   const prevMonthLastDay = new Date(year, month, 0)
   const prevMonthDays = prevMonthLastDay.getDate()
 
-  const weeks: CalendarDay[][] = []
-  let currentWeek: CalendarDay[] = []
+  const weeks: Array<Array<CalendarDay>> = []
+  let currentWeek: Array<CalendarDay> = []
 
   // Add days from previous month
   for (let i = daysFromPrevMonth - 1; i >= 0; i--) {

@@ -1,103 +1,88 @@
-# Web Scrapers
+# Web scrapers
 
-This directory contains web scrapers for various event sources in Bangalore.
+One scraper per event source. Each exports an object implementing the
+`EventScraper` interface in [types.ts](./types.ts) and is registered in the
+`scrapers` array in [index.ts](./index.ts).
 
-## Browser Rendering Migration
-
-**⚠️ IMPORTANT:** All scrapers now use **Cloudflare Browser Rendering API** instead of Puppeteer.
-
-Puppeteer does not work on Cloudflare Workers, so we've migrated to Cloudflare's managed browser service.
-
-### Quick Start
-
-**Old way (Puppeteer - doesn't work on Workers):**
-```typescript
-import { fetchRenderedHTML } from './puppeteer-helper'
-
-const html = await fetchRenderedHTML(url)
-```
-
-**New way (Cloudflare Browser Rendering):**
-```typescript
-import { setBrowserBinding, fetchRenderedHTML } from './puppeteer-helper'
-
-// At the start of your scraper function
-setBrowserBinding(env.BROWSER)
-
-// Then use as normal
-const html = await fetchRenderedHTML(url)
-```
-
-**Or use the new helper directly:**
-```typescript
-import { fetchRenderedHTML } from './browser-helper'
-
-const html = await fetchRenderedHTML(env.BROWSER, url, options)
-```
+See [SCRAPERS.md](../../../SCRAPERS.md) for the status of each source.
 
 ## Files
 
-### Core Files
-- **browser-helper.ts** - New Cloudflare Browser Rendering implementation
-- **puppeteer-helper.ts** - Backward-compatible wrapper (DEPRECATED)
-- **types.ts** - Shared TypeScript types for scrapers
+- **index.ts** — the registry, and `scrapeAllSources()`, which runs the scrapers
+  and de-duplicates their results
+- **types.ts** — `Event`, `ScraperResult`, `EventScraper`
+- **browser-helper.ts** — `fetchRenderedHTML()`, for pages that need JavaScript
+  to render (Cloudflare Browser Rendering through the `BROWSER` binding)
 
-### Scrapers
-Each scraper exports an object implementing the `EventScraper` interface:
+| Scraper | Source | Method |
+| --- | --- | --- |
+| bic-scraper.ts | Bangalore International Centre | fetch |
+| iha-scraper.ts | Indian Heritage Academy | fetch |
+| ime-scraper.ts | Indian Music Experience | fetch |
+| urbanaut-scraper.ts | Urbanaut | fetch (server-rendered page) |
+| total-environment-scraper.ts | Total Environment | JSON API |
+| map-scraper.ts | Museum of Art & Photography | browser |
+| sabha-scraper.ts | Sabha | browser |
+| skillboxes-scraper.ts | Skillboxes | browser |
+| district-scraper.ts | District | browser |
 
-- **bic-scraper.ts** - Bangalore International Centre (fetch)
-- **iha-scraper.ts** - Indian Heritage Academy (fetch)
-- **ime-scraper.ts** - Indian Music Experience (fetch)
-- **map-scraper.ts** - MAP / Museum of Art & Photography (Puppeteer)
-- **skillboxes-scraper.ts** - Skillboxes workshops (Puppeteer)
-- **urbanaut-scraper.ts** - Urbanaut events (fetch, SSR)
-- **district-scraper.ts** - District events (Puppeteer)
-- **total-environment-scraper.ts** - Total Environment music events (JSON API)
-- **sabha-scraper.ts** - Sabha cultural events (Puppeteer)
+## Two kinds of scraper
 
-See [SCRAPERS.md](../../../SCRAPERS.md) for per-scraper status.
+**Fetch scrapers** download HTML or JSON with `fetch` and parse it with cheerio.
+They are quick and run anywhere, including `pnpm dev`.
 
-## Creating a New Scraper
+**Browser scrapers** call `fetchRenderedHTML(env.BROWSER, url, options)`. They
+need the `BROWSER` binding, so they only work on Cloudflare (or
+`pnpm dev:wrangler`); without the binding the helper returns an empty string and
+the scraper should return no events. Give these `priority: 'low'` — low-priority
+scrapers run one at a time, each with a 60-second timeout.
 
-See [BROWSER_RENDERING.md](../../../BROWSER_RENDERING.md) for complete documentation.
+Only the scrapers listed in `FAST_SCRAPER_IDS` in [index.ts](./index.ts) run in
+the 30-minute background refresh. Everything runs in the daily cron scrape.
 
-Basic template:
+## Adding a scraper
 
 ```typescript
-import { EventScraper, ScraperResult } from './types'
-import { setBrowserBinding, fetchRenderedHTML } from './puppeteer-helper'
 import * as cheerio from 'cheerio'
+import { categorizeEvent } from '../utils/categorize-event'
+import { fetchRenderedHTML } from './browser-helper'
+import type { EventScraper, ScraperResult } from './types'
 
-export const myNewScraper: EventScraper = {
+export const myScraper: EventScraper = {
   id: 'my-source',
   name: 'My Event Source',
   website: 'https://example.com',
   enabled: true,
-  priority: 'medium',
+  priority: 'low', // 'high' | 'normal' | 'low' — use 'low' for browser scrapers
 
   scrape: async (env): Promise<ScraperResult> => {
     try {
-      // IMPORTANT: Set browser binding first!
-      setBrowserBinding(env.BROWSER)
+      const html = await fetchRenderedHTML(env?.BROWSER, 'https://example.com/events')
+      if (!html) return { events: [] }
 
-      // Fetch rendered HTML
-      const html = await fetchRenderedHTML('https://example.com/events')
-
-      // Parse and extract events...
       const $ = cheerio.load(html)
-      // ... scraping logic
+      const events: ScraperResult['events'] = []
+      // ... push { title, date, time, link, venue, price, category, source } ...
 
       return { events, metadata: { totalCount: events.length } }
     } catch (error) {
-      console.error('Scraper error:', error)
+      console.error('Error scraping My Event Source:', error)
       return { events: [], metadata: { totalCount: 0 } }
     }
   },
 }
 ```
 
-## Resources
+Then add it to the `scrapers` array in [index.ts](./index.ts).
 
-- [Cloudflare Browser Rendering Guide](../../../BROWSER_RENDERING.md)
-- [Migration Checklist](../../../MIGRATION_CHECKLIST.md)
-- [Deployment Guide](../../../DEPLOYMENT.md)
+### Dates
+
+`date` is stored as the string you return, and the app decides whether an event
+is over by parsing it ([date-time.ts](../utils/date-time.ts)). Return something
+it can read, always with a four-digit year:
+
+- a single day: `Sat 14 Nov 2026`, `Saturday, Nov 14 2026`, `November 14, 2026`
+- a range: `Nov 10 - Nov 30 2026`
+
+An event whose date can't be parsed is still listed, but only for as long as the
+scraper keeps finding it on the source site.

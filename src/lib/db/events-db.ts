@@ -8,7 +8,7 @@ import { nanoid } from 'nanoid'
 import { db } from '../../db'
 import { events, scraperRuns } from '../../db/schema'
 import { serializeCategories } from '../utils/categorize-event'
-import { hasEventEnded, parseEventEndDate } from '../utils/date-time'
+import { hasEventEnded } from '../utils/date-time'
 import type { Event } from '../scrapers'
 
 /**
@@ -119,59 +119,36 @@ const DELETE_BATCH_SIZE = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
- * An event with no readable date ("Check website for dates") can't be aged
- * out by its date, so it is treated as gone once the scrapers have stopped
- * seeing it on the source site for this long. Every full scrape (daily cron)
- * re-stamps `scrapedAt` on everything still listed.
+ * An event the scrapers have stopped seeing on its source site for this long
+ * is treated as gone: cancelled, delisted, or re-listed under a changed title
+ * or date (which makes it a new row and would otherwise leave a duplicate).
+ * It is also the only way an event with no readable date ("Every Sun",
+ * "Check website for dates") ever leaves the list. Every full scrape (daily
+ * cron) re-stamps `scrapedAt` on everything still listed, so three days
+ * tolerates a couple of failed runs.
  */
-const UNDATED_STALE_DAYS = 7
+const UNSEEN_STALE_DAYS = 3
 
 /** How long after it ends a dated event is kept before being deleted. */
 const PRUNE_ENDED_AFTER_DAYS = 7
-/** How long an undated event may go unseen before being deleted. */
-const PRUNE_UNDATED_AFTER_DAYS = 14
-
-function isUndated(dateString: string): boolean {
-  return parseEventEndDate(dateString) === null
-}
+/** How long any event may go unseen before being deleted. */
+const PRUNE_UNSEEN_AFTER_DAYS = 14
 
 /**
- * Get every event row from the database, including past ones.
- */
-export async function getAllEvents(): Promise<Array<Event>> {
-  const rows = await db.select().from(events)
-
-  return rows.map((row) => ({
-    title: row.title,
-    date: row.date,
-    time: row.time,
-    link: row.link,
-    description: row.description ?? undefined,
-    category: row.category ?? undefined,
-    image: row.image ?? undefined,
-    venue: row.venue ?? undefined,
-    price: row.price ?? undefined,
-    source: row.source,
-  }))
-}
-
-/**
- * Get the events worth showing: not yet over, and — for events with no
- * readable date — still being seen on the source site.
+ * Get the events worth showing: not yet over, and still being seen on the
+ * source site.
  */
 export async function getUpcomingEvents(): Promise<Array<Event>> {
   const rows = await db.select().from(events)
   const now = new Date()
-  const undatedCutoff = now.getTime() - UNDATED_STALE_DAYS * DAY_MS
+  const unseenCutoff = now.getTime() - UNSEEN_STALE_DAYS * DAY_MS
 
   return rows
-    .filter((row) => {
-      if (hasEventEnded(row.date, now)) return false
-      if (isUndated(row.date) && row.scrapedAt.getTime() < undatedCutoff) {
-        return false
-      }
-      return true
-    })
+    .filter(
+      (row) =>
+        !hasEventEnded(row.date, now) &&
+        row.scrapedAt.getTime() >= unseenCutoff,
+    )
     .map((row) => ({
       title: row.title,
       date: row.date,
@@ -187,9 +164,9 @@ export async function getUpcomingEvents(): Promise<Array<Event>> {
 }
 
 /**
- * Delete events that are long over: dated events that ended more than
- * PRUNE_ENDED_AFTER_DAYS ago, and undated events the scrapers haven't seen for
- * PRUNE_UNDATED_AFTER_DAYS. Dates are free-form strings, so this can't be a
+ * Delete events that are long gone: ones that ended more than
+ * PRUNE_ENDED_AFTER_DAYS ago, and ones the scrapers haven't seen for
+ * PRUNE_UNSEEN_AFTER_DAYS. Dates are free-form strings, so this can't be a
  * single SQL filter — rows are judged in JS and deleted by id.
  *
  * Bookmarks keep their own snapshot of the event, so they are unaffected.
@@ -201,13 +178,13 @@ export async function pruneStaleEvents(): Promise<number> {
 
   const now = new Date()
   const endedCutoff = new Date(now.getTime() - PRUNE_ENDED_AFTER_DAYS * DAY_MS)
-  const undatedCutoff = now.getTime() - PRUNE_UNDATED_AFTER_DAYS * DAY_MS
+  const unseenCutoff = now.getTime() - PRUNE_UNSEEN_AFTER_DAYS * DAY_MS
 
   const staleIds = rows
-    .filter((row) =>
-      isUndated(row.date)
-        ? row.scrapedAt.getTime() < undatedCutoff
-        : hasEventEnded(row.date, endedCutoff),
+    .filter(
+      (row) =>
+        hasEventEnded(row.date, endedCutoff) ||
+        row.scrapedAt.getTime() < unseenCutoff,
     )
     .map((row) => row.id)
 
@@ -218,41 +195,6 @@ export async function pruneStaleEvents(): Promise<number> {
   }
 
   return staleIds.length
-}
-
-/**
- * Get events scraped after a certain date (for freshness checks)
- */
-export async function getRecentEvents(since: Date): Promise<Array<Event>> {
-  const rows = await db
-    .select()
-    .from(events)
-    .where(sql`${events.scrapedAt} >= ${since.getTime()}`)
-
-  return rows.map((row) => ({
-    title: row.title,
-    date: row.date,
-    time: row.time,
-    link: row.link,
-    description: row.description ?? undefined,
-    category: row.category ?? undefined,
-    image: row.image ?? undefined,
-    venue: row.venue ?? undefined,
-    price: row.price ?? undefined,
-    source: row.source,
-  }))
-}
-
-/**
- * Delete events older than a certain date
- * (useful for cleaning up past events)
- */
-export async function deleteOldEvents(beforeDate: string): Promise<number> {
-  const result = await db
-    .delete(events)
-    .where(sql`${events.date} < ${beforeDate}`)
-
-  return result.rowsAffected
 }
 
 /**
@@ -300,28 +242,5 @@ export async function getLastScraperRun() {
   return {
     ...run,
     errors: run.errors ? JSON.parse(run.errors) : [],
-  }
-}
-
-/**
- * Get statistics about stored events
- */
-export async function getEventStats() {
-  const totalEvents = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(events)
-
-  const uniqueSources = await db
-    .select({ source: events.source })
-    .from(events)
-    .groupBy(events.source)
-
-  const lastRun = await getLastScraperRun()
-
-  return {
-    totalEvents: totalEvents[0]?.count ?? 0,
-    uniqueSources: uniqueSources.length,
-    sources: uniqueSources.map((s) => s.source),
-    lastScraperRun: lastRun,
   }
 }

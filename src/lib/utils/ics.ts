@@ -1,6 +1,6 @@
-import { Event } from '../scrapers/types'
 import { parseEventDateToDate } from './calendar'
 import { generateEventFingerprint } from './event-fingerprint'
+import type { Event } from '../scrapers/types'
 
 // Generate ICS (iCalendar) file content for an event
 export function generateICS(event: Event): string {
@@ -11,7 +11,7 @@ export function generateICS(event: Event): string {
   }
 
   // Parse time if available
-  let startDateTime = new Date(eventDate)
+  const startDateTime = new Date(eventDate)
   let endDateTime = new Date(eventDate)
 
   if (event.time) {
