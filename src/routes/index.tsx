@@ -10,10 +10,9 @@ import { authClient } from '../lib/auth-client'
 // import { markEventAsRemoved, getRemovedEventFingerprints } from '../lib/server/user-events'
 // import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
 import { markEventAsRemoved } from '../lib/server/user-events'
-import { refreshEvents } from '../lib/server/events-refresh'
+import { refreshAllEvents, refreshEvents } from '../lib/server/events-refresh'
 import {
   compareEventDateTimes,
-  hasEventEnded,
   isToday,
   isTomorrow,
   isUpcomingEvent,
@@ -48,50 +47,15 @@ const scrapeEvents = createServerFn({
   const env = getCloudflareEnv(ctx)
   const result = await getCachedEvents(env, getWaitUntil(ctx))
 
-  // Also fetch approved user-submitted events
-  const { db } = await import('../db')
-  const { userEvents: userEventsTable, removedEvents } = await import('../db/schema')
-  const { eq } = await import('drizzle-orm')
-  const { generateEventFingerprint } = await import('../lib/utils/event-fingerprint')
-
-  const userEventsData = await db
-    .select()
-    .from(userEventsTable)
-    .where(eq(userEventsTable.status, 'approved'))
-
-  // Convert to Event format
-  const userEvents = userEventsData.map((event) => ({
-    id: event.id,
-    title: event.title,
-    date: event.date,
-    time: event.time,
-    link: event.link,
-    description: event.description || '',
-    category: event.category || '',
-    image: event.image || '',
-    venue: event.venue || '',
-    price: event.price || '',
-    source: 'user-submitted',
-  }))
-
-  // Merge events
-  const allEvents = [...result.events, ...userEvents]
-
-  // Get removed event fingerprints
-  const removedEventsData = await db.select().from(removedEvents)
-  const removedFingerprints = new Set(removedEventsData.map((r) => r.eventFingerprint))
-
-  // Filter out removed events, and events that are already over — the client
-  // only ever shows upcoming events, so don't ship the rest in the payload.
-  const filteredEvents = allEvents.filter((event) => {
-    if (hasEventEnded(event.date)) return false
-    const fingerprint = generateEventFingerprint(event)
-    return !removedFingerprints.has(fingerprint)
-  })
+  // Add approved host submissions; drop removed and already-finished events.
+  // The client only ever shows upcoming events, so don't ship the rest.
+  const { withApprovedAndWithoutRemoved } = await import(
+    '../lib/server/visible-events'
+  )
 
   return {
     ...result,
-    events: filteredEvents,
+    events: await withApprovedAndWithoutRemoved(result.events),
   }
 })
 
@@ -140,19 +104,26 @@ function EventsPage() {
   // Check if current user is admin
   const isAdmin = session?.user?.role === 'admin'
 
-  // Handle manual refresh
-  const handleRefresh = async () => {
+  // Handle manual refresh. The quick refresh re-reads only the fast sources
+  // (the same ones the automatic 30-minute refresh covers); the full refresh
+  // runs every scraper, including the browser-rendered ones, exactly like the
+  // nightly cron.
+  const handleRefresh = async (full: boolean = false) => {
     if (!isAdmin) {
       toast.error('Only admins can refresh events')
       return
     }
 
     setIsRefreshing(true)
-    toast.info('Refreshing events... This may take 30-60 seconds')
+    toast.info(
+      full
+        ? 'Running every scraper… this can take a few minutes. Keep this tab open.'
+        : 'Refreshing events... This may take 30-60 seconds',
+    )
 
     try {
       // @ts-ignore - Server function typing
-      const result = await refreshEvents()
+      const result = await (full ? refreshAllEvents() : refreshEvents())
 
       if (result.success) {
         // Invalidate the route to refetch data
@@ -295,7 +266,8 @@ function EventsPage() {
         filteredCount={filteredEvents.length}
         totalCount={upcomingEvents.length}
         cacheAge={data.cacheAge}
-        onRefresh={handleRefresh}
+        onRefresh={() => handleRefresh(false)}
+        onFullRefresh={() => handleRefresh(true)}
         isRefreshing={isRefreshing}
         isAdmin={isAdmin}
       />

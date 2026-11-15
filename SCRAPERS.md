@@ -34,15 +34,23 @@ refresh).
   Universal), so Puppeteer was unnecessary. Rewritten to a plain `fetch` +
   cheerio against `https://urbanaut.app/experience-bengaluru/events`. Validated
   against live HTML: **152 events** with title, date, venue, price and link.
-  *Limitation:* card images lazy-load client-side (SSR ships a `loading.svg`
-  placeholder), so no event image is captured — events are imageless.
+  The card images lazy-load client-side (SSR ships a `loading.svg`
+  placeholder), so the image, start time and description are taken from the
+  JSON the page embeds in `<script id="ng-state">` (`home_spot[]`, matched to
+  each card by slug).
 - **Total Environment → public API.** It's a client-rendered React app backed by
   `https://api.total-environment.com/api/v1.0/`. Rewritten to: `GET token.json`
   (public JWT, no credentials) → `POST getEvents.json` with `Bearer` token and
   body `{flag:"upcoming"}` → map `result.data.music_events[]`. Validated against
   the live API (title, per-date shows, venue, price, genre, link). **Enabled.**
-  *Limitation:* poster filenames have no resolvable public base URL, so events
-  are imageless.
+  Posters: the response's `result.data.media_path` is the image folder; the
+  landscape poster is `<media_path>Web/<event_poster>`. Only Bangalore venues
+  are kept (the API also returns Hyderabad shows).
+- **District → field-by-field parsing, tall viewport.** Cards are read element
+  by element (two layouts, merged by link). The page only loads card images and
+  its second batch of events once they are on screen, so it is rendered in a
+  12000px-high viewport; landscape covers come from the page's JSON-LD where
+  available.
 - **MAP → Puppeteer on `/events/`** (was a stale direct-fetch of `/whats-on/`,
   which now 301-redirects to `/content-archives/`). See caveat.
 - **Fixed the IME fast-refresh bug.** `FAST_SCRAPER_IDS` listed `'ime'` but the

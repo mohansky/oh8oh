@@ -8,6 +8,11 @@ import type { EventScraper, ScraperResult } from './types'
  * Flow: GET token.json (public JWT, no credentials) → POST getEvents.json with
  * `Authorization: Bearer <token>` and body `{flag:"upcoming"}`. The response is
  * `result.data.music_events[]`, each with nested details/venues/dates/genres.
+ *
+ * Images: an event only carries a poster filename (`event_poster`). The
+ * folder it lives in comes back in the same response as
+ * `result.data.media_path`, and the landscape version sits under `Web/`
+ * (`Mobile/` holds a portrait crop named by `mobile_image`).
  */
 const API_BASE = 'https://api.total-environment.com/api/v1.0'
 const SITE = 'https://www.total-environment.com'
@@ -68,6 +73,12 @@ export const totalEnvironmentScraper: EventScraper = {
       const musicEvents: Array<any> = data?.result?.data?.music_events || []
       console.log(`Total Environment: API returned ${musicEvents.length} events`)
 
+      const mediaPath: string = data?.result?.data?.media_path || ''
+      const posterUrl = (fileName?: string) =>
+        mediaPath && fileName
+          ? `${mediaPath.replace(/\/?$/, '/')}Web/${encodeURIComponent(fileName)}`
+          : ''
+
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
@@ -90,6 +101,11 @@ export const totalEnvironmentScraper: EventScraper = {
 
         // Emit one event per (venue, upcoming concert date)
         for (const v of ev.music_event_venues || []) {
+          // The API lists every city's shows (Hyderabad too). Keep venues in
+          // Bangalore, and ones with no city given.
+          const city: string = v.city?.city_name || ''
+          if (city && !/^(bangalore|bengaluru)$/i.test(city.trim())) continue
+
           const venueName = v.restaurant_outlet?.outlet_name || v.other_venue || 'Total Environment'
           const venue = [venueName, v.area?.area_name, v.city?.city_name].filter(Boolean).join(', ')
 
@@ -105,7 +121,7 @@ export const totalEnvironmentScraper: EventScraper = {
               link,
               description,
               category: categorizeEvent(title, `${description} ${genres.join(' ')}`),
-              image: '', // API poster filenames have no resolvable public base URL
+              image: posterUrl(ev.event_poster),
               venue,
               price,
               source: 'Total Environment',

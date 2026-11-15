@@ -105,28 +105,32 @@ export function isSameDay(date1: Date, date2: Date): boolean {
   )
 }
 
-export function parseEventDateToDate(dateString: string): Date | null {
-  // Parse date strings like "Fri 20 Dec", "20 Dec 2024", etc.
-  try {
-    const currentYear = new Date().getFullYear()
+/**
+ * A key for one calendar day, built from the date's local parts.
+ * (Not toISOString(): that converts to UTC first, which in IST turns local
+ * midnight into the previous day.)
+ */
+export function dayKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
 
-    // Try parsing with Date constructor
-    let date = new Date(dateString)
+/** Events running longer than this show on their first and last day only. */
+const MAX_DAYS_SHOWN_IN_FULL = 14
 
-    // If that doesn't work, try adding current year
-    if (isNaN(date.getTime())) {
-      date = new Date(`${dateString} ${currentYear}`)
-    }
-
-    // If still invalid, return null
-    if (isNaN(date.getTime())) {
-      return null
-    }
-
-    // Set time to midnight
-    date.setHours(0, 0, 0, 0)
-    return date
-  } catch {
-    return null
+/**
+ * The calendar days an event should appear on. A short multi-day event shows
+ * on every day it runs; a long run (a two-month exhibition) would fill the
+ * whole grid, so it shows only where it opens and closes.
+ */
+export function calendarDaysFor(start: Date, end: Date): Array<Date> {
+  const days: Array<Date> = []
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  while (cursor <= end && days.length <= MAX_DAYS_SHOWN_IN_FULL) {
+    days.push(new Date(cursor))
+    cursor.setDate(cursor.getDate() + 1)
   }
+  if (days.length > MAX_DAYS_SHOWN_IN_FULL) return [start, end]
+  return days
 }

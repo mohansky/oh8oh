@@ -1,6 +1,13 @@
 /// <reference types="vite/client" />
 /// <reference types="vite-plugin-pwa/client" />
 
+interface ImportMetaEnv {
+  /** Origin the browser auth client calls, e.g. https://example.com */
+  readonly VITE_AUTH_URL?: string
+  /** Public origin of the site; falls back to VITE_AUTH_URL */
+  readonly VITE_SITE_URL?: string
+}
+
 declare module 'virtual:pwa-register/react' {
   import type { Ref } from 'react'
 

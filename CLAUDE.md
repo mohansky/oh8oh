@@ -47,7 +47,7 @@ pnpm cf:deploy        # build with prod VITE_AUTH_URL, then wrangler deploy from
 
 ### Dates
 
-Scraped dates are free-form strings stored as-is. All "is this over / today / this weekend" logic lives in [src/lib/utils/date-time.ts](src/lib/utils/date-time.ts) and is evaluated in Bangalore time (IST) on both server and client; date ranges are judged by their end date (`parseEventEndDate`). Tests are in `date-time.test.ts`.
+Scraped dates are free-form strings stored as-is (changing a stored date string changes the event's id and fingerprint, so don't normalise them in place). `getEventDates()` in [src/lib/utils/date-time.ts](src/lib/utils/date-time.ts) is the single function that turns one into a start and end day; filters, sorting, the calendar, the .ics export and the displayed date all go through it — don't add another parser. "Today" is always Bangalore time (IST), on server and client. Tests are in `date-time.test.ts` and `calendar.test.ts`.
 
 ### Event identity
 

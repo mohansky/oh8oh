@@ -85,40 +85,45 @@ export function extractTime(dateTimeString: string): string {
   return ''
 }
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thur', 'Fri', 'Sat']
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+function formatDay(date: Date, withYear: boolean): string {
+  const day = date.getDate().toString().padStart(2, '0')
+  const text = `${DAY_NAMES[date.getDay()]}, ${MONTH_NAMES[date.getMonth()]} ${day}`
+  return withYear ? `${text}, ${date.getFullYear()}` : text
+}
+
 /**
- * Extract clean date without time
- * Returns formatted date string
+ * Extract a clean date without time, for display.
+ * One day:  "Thur, Nov 07, 2025"
+ * A range:  "Sat, Dec 05 – Sun, Dec 06, 2026"
+ * Text with no date in it ("Every Sun") is returned unchanged.
  */
 export function extractCleanDate(dateTimeString: string): string {
   if (!dateTimeString) return ''
 
-  // Parse the date
-  const date = parseEventDate(dateTimeString)
-  if (!date) return dateTimeString
+  const dates = getEventDates(dateTimeString)
+  if (!dates) return dateTimeString
 
-  // Format as "Day, Month DD, YYYY" (e.g., "Thursday, Nov 07, 2025")
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thur', 'Fri', 'Sat']
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
+  const { start, end } = dates
+  if (start.getTime() === end.getTime()) return formatDay(start, true)
 
-  const dayName = days[date.getDay()]
-  const monthName = months[date.getMonth()]
-  const day = date.getDate().toString().padStart(2, '0')
-  const year = date.getFullYear()
-
-  return `${dayName}, ${monthName} ${day}, ${year}`
+  const sameYear = start.getFullYear() === end.getFullYear()
+  return `${formatDay(start, !sameYear)} – ${formatDay(end, true)}`
 }
 
 /**
@@ -156,28 +161,60 @@ const DATE_RANGE_SEPARATOR = /\s+[-–—]\s+|\s+to\s+/i
 // A month name next to a day number, in either order ("Jul 30" / "30 Jul").
 const MONTH_AND_DAY = /[A-Za-z]{3,9}\.?,?\s+\d{1,2}|\d{1,2}\s+[A-Za-z]{3,9}/
 
+/** The first and last calendar day of an event, as local-midnight dates. */
+export interface EventDates {
+  start: Date
+  end: Date
+}
+
 /**
- * Parse the LAST day of an event. For a single-day event this is the same as
- * parseEventDate; for a date range it is the range's end date, which
- * parseEventDate cannot read at all (it returns null for the whole string).
+ * The one place that turns a scraped date string into calendar days.
+ * Everything that needs to know when an event is — filters, sorting, the
+ * calendar, the .ics export, the displayed date — goes through this.
  *
- * The right-hand side only counts as a date when it carries a 4-digit year and
- * a month+day, so time ranges such as "06 Nov 2025, 4:00 pm – 7:00 pm" are not
- * mistaken for date ranges.
+ * A single-day event has start === end. For a range ("Oct 18 - Dec 20 2026",
+ * "Sat, 05 Dec 2026 – Sun, 06 Dec 2026") the two differ. Returns null when
+ * the text holds no date ("Every Sun", "Check website for dates").
+ *
+ * The right-hand side of a separator only counts as a date when it carries a
+ * 4-digit year and a month+day, so a time range such as
+ * "06 Nov 2025, 4:00 pm – 7:00 pm" is not mistaken for a date range.
  */
-export function parseEventEndDate(dateString: string): Date | null {
+export function getEventDates(dateString: string): EventDates | null {
   if (!dateString) return null
 
   const parts = dateString.split(DATE_RANGE_SEPARATOR)
   if (parts.length >= 2) {
     const last = parts[parts.length - 1].trim()
-    if (/\d{4}/.test(last) && MONTH_AND_DAY.test(last)) {
-      const end = parseEventDate(last)
-      if (end) return end
+    const end =
+      /\d{4}/.test(last) && MONTH_AND_DAY.test(last) ? parseEventDate(last) : null
+
+    if (end) {
+      const first = parts[0].trim()
+      let start: Date | null
+      if (/\d{4}/.test(first)) {
+        start = parseEventDate(first)
+      } else {
+        // "Oct 18 - Dec 20 2026": the start borrows the end's year, or the
+        // year before when the range runs across New Year.
+        start = parseEventDate(`${first} ${end.getFullYear()}`)
+        if (start && start > end) {
+          start = parseEventDate(`${first} ${end.getFullYear() - 1}`)
+        }
+      }
+      return { start: start && start <= end ? start : end, end }
     }
   }
 
-  return parseEventDate(dateString)
+  const day = parseEventDate(dateString)
+  return day ? { start: day, end: day } : null
+}
+
+/**
+ * The last day of an event (the end of a range, or the day itself).
+ */
+export function parseEventEndDate(dateString: string): Date | null {
+  return getEventDates(dateString)?.end ?? null
 }
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
@@ -231,17 +268,11 @@ export function inferEventYear(
  * last seen on the source site (see events-db).
  */
 export function hasEventEnded(dateString: string, now: Date = new Date()): boolean {
-  const endDate = parseEventEndDate(dateString)
-  if (!endDate) return false
-
+  const dates = getEventDates(dateString)
+  if (!dates) return false
   // Parsed event dates are wall-clock dates in the runtime's local zone, so
-  // read them back with local getters to recover the calendar day.
-  const eventKey = toDayKey(
-    endDate.getFullYear(),
-    endDate.getMonth(),
-    endDate.getDate(),
-  )
-  return eventKey < todayKeyIST(now)
+  // dateToDayKey reads them back with local getters.
+  return dateToDayKey(dates.end) < todayKeyIST(now)
 }
 
 /**
@@ -278,48 +309,48 @@ export function parseEventTime(timeString: string): number | null {
   return hour * 60 + minute
 }
 
-/**
- * Compare two event dates for sorting (earliest first)
- */
-export function compareEventDates(dateA: string, dateB: string): number {
-  const parsedA = parseEventDate(dateA)
-  const parsedB = parseEventDate(dateB)
-
-  // Events with no date go to the end
-  if (!parsedA && !parsedB) return 0
-  if (!parsedA) return 1
-  if (!parsedB) return -1
-
-  return parsedA.getTime() - parsedB.getTime()
-}
 
 /**
- * Compare two events by date and time for sorting (earliest first)
- * First sorts by date, then by start time within the same date
+ * Compare two events for the main list (soonest first).
+ *
+ * An event is placed on the day it starts. One that has already started (an
+ * exhibition or a class series mid-run) is placed on the day it ends instead:
+ * listing every running event under today would bury tomorrow's events —
+ * on a typical day dozens of series are mid-run — and many of them only meet
+ * on some days, so "today" would often be wrong anyway. Within a day: events
+ * starting then come before ones closing then, then by start time, with
+ * untimed events last. Undated events go to the very end.
  */
 export function compareEventDateTimes(
   eventA: { date: string; time: string },
-  eventB: { date: string; time: string }
+  eventB: { date: string; time: string },
+  now: Date = new Date(),
 ): number {
-  const parsedDateA = parseEventDate(eventA.date)
-  const parsedDateB = parseEventDate(eventB.date)
+  const datesA = getEventDates(eventA.date)
+  const datesB = getEventDates(eventB.date)
 
   // Events with no date go to the end
-  if (!parsedDateA && !parsedDateB) return 0
-  if (!parsedDateA) return 1
-  if (!parsedDateB) return -1
+  if (!datesA && !datesB) return 0
+  if (!datesA) return 1
+  if (!datesB) return -1
 
-  // Compare dates first
-  const dateComparison = parsedDateA.getTime() - parsedDateB.getTime()
-  if (dateComparison !== 0) return dateComparison
+  const today = todayKeyIST(now)
+  const startA = dateToDayKey(datesA.start)
+  const startB = dateToDayKey(datesB.start)
+  const runningA = startA < today ? 1 : 0
+  const runningB = startB < today ? 1 : 0
 
-  // Dates are equal, now compare times
-  // Extract time from event.time or from date string
-  const timeA = eventA.time || extractTime(eventA.date)
-  const timeB = eventB.time || extractTime(eventB.date)
+  // The day each event is listed under: its start, or its end once running
+  const dayA = runningA ? dateToDayKey(datesA.end) : startA
+  const dayB = runningB ? dateToDayKey(datesB.end) : startB
+  if (dayA !== dayB) return dayA - dayB
 
-  const parsedTimeA = parseEventTime(timeA)
-  const parsedTimeB = parseEventTime(timeB)
+  // Same day: an event starting beats one closing
+  if (runningA !== runningB) return runningA - runningB
+
+  // Then by start time — from event.time, or embedded in the date string
+  const parsedTimeA = parseEventTime(eventA.time || extractTime(eventA.date))
+  const parsedTimeB = parseEventTime(eventB.time || extractTime(eventB.date))
 
   // Events with no time go to the end within the same date
   if (parsedTimeA === null && parsedTimeB === null) return 0
@@ -329,17 +360,18 @@ export function compareEventDateTimes(
   return parsedTimeA - parsedTimeB
 }
 
+function dateToDayKey(date: Date): number {
+  return toDayKey(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
 /**
- * The calendar day an event falls on, as a comparable number (see toDayKey).
+ * True when the event is on at some point between two days (inclusive),
+ * given as day keys. A multi-day event counts on every day it runs.
  */
-function eventDayKey(dateString: string): number | null {
-  const eventDate = parseEventDate(dateString)
-  if (!eventDate) return null
-  return toDayKey(
-    eventDate.getFullYear(),
-    eventDate.getMonth(),
-    eventDate.getDate(),
-  )
+function isOnBetween(dateString: string, fromKey: number, toKey: number): boolean {
+  const dates = getEventDates(dateString)
+  if (!dates) return false
+  return dateToDayKey(dates.start) <= toKey && dateToDayKey(dates.end) >= fromKey
 }
 
 /**
@@ -350,38 +382,39 @@ function dayKeyFromTodayIST(offsetDays: number, now: Date): number {
 }
 
 /**
- * Check if an event is today (Bangalore time)
+ * Check if an event is on today (Bangalore time)
  */
 export function isToday(dateString: string, now: Date = new Date()): boolean {
-  const key = eventDayKey(dateString)
-  return key !== null && key === todayKeyIST(now)
+  const today = todayKeyIST(now)
+  return isOnBetween(dateString, today, today)
 }
 
 /**
- * Check if an event is tomorrow (Bangalore time)
+ * Check if an event is on tomorrow (Bangalore time)
  */
 export function isTomorrow(dateString: string, now: Date = new Date()): boolean {
-  const key = eventDayKey(dateString)
-  return key !== null && key === dayKeyFromTodayIST(1, now)
+  const tomorrow = dayKeyFromTodayIST(1, now)
+  return isOnBetween(dateString, tomorrow, tomorrow)
 }
 
 /**
- * Check if an event is on the coming weekend (Bangalore time).
+ * Check if an event is on during the coming weekend (Bangalore time).
  * On a Saturday that means today and tomorrow; on a Sunday, just today;
  * otherwise the next Saturday and Sunday.
  */
 export function isWeekend(dateString: string, now: Date = new Date()): boolean {
-  const key = eventDayKey(dateString)
-  if (key === null) return false
-
   // Day of week in Bangalore: 0 = Sunday … 6 = Saturday
   const dayOfWeek = new Date(now.getTime() + IST_OFFSET_MS).getUTCDay()
-  if (dayOfWeek === 0) return key === todayKeyIST(now)
+  if (dayOfWeek === 0) {
+    const today = todayKeyIST(now)
+    return isOnBetween(dateString, today, today)
+  }
 
   const daysUntilSaturday = 6 - dayOfWeek
-  return (
-    key === dayKeyFromTodayIST(daysUntilSaturday, now) ||
-    key === dayKeyFromTodayIST(daysUntilSaturday + 1, now)
+  return isOnBetween(
+    dateString,
+    dayKeyFromTodayIST(daysUntilSaturday, now),
+    dayKeyFromTodayIST(daysUntilSaturday + 1, now),
   )
 }
 

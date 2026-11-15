@@ -128,6 +128,33 @@ function yearMatchingWeekday(
   return inferredYear
 }
 
+/**
+ * The page describes its first events in schema.org JSON-LD, including each
+ * one's cover images (portrait first, then landscape). Map event URL → the
+ * landscape image, falling back to whichever is there.
+ */
+function readListedImages($: cheerio.CheerioAPI): Map<string, string> {
+  const images = new Map<string, string>()
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const data = JSON.parse($(script).text())
+      for (const entry of data?.itemListElement ?? []) {
+        const item = entry?.item
+        const list: Array<string> = Array.isArray(item?.image)
+          ? item.image
+          : item?.image
+            ? [item.image]
+            : []
+        const image = list.find((url) => url.includes('horizontal')) ?? list[0]
+        if (item?.url && image) images.set(item.url, image)
+      }
+    } catch {
+      /* not JSON we understand — ignore */
+    }
+  })
+  return images
+}
+
 function isOutsideBengaluru(venue: string): boolean {
   const city = venue.split(',').pop()?.trim().toLowerCase() ?? ''
   return OTHER_CITIES.has(city)
@@ -148,6 +175,7 @@ export function parseDistrictEvents(
   now: Date = new Date(),
 ): Array<ScrapedEvent> {
   const $ = cheerio.load(html)
+  const listedImages = readListedImages($)
 
   interface Card {
     title: string
@@ -218,7 +246,9 @@ export function parseDistrictEvents(
       link,
       description: '',
       category: 'Music',
-      image: card.image,
+      // Our cards are landscape, so prefer the landscape cover from the
+      // page's structured data over the portrait poster on District's card.
+      image: listedImages.get(link) || card.image,
       venue: card.venue || 'Check event website',
       price: card.price || 'Check website for price',
       source: 'District',
@@ -245,7 +275,13 @@ export const districtScraper: EventScraper = {
         waitUntil: 'networkidle2', // Wait for network requests to complete
         timeout: 45000, // Increased timeout for API calls
         waitAfterLoad: 2000, // Wait for React to render after data loads
-        skipScroll: true, // Events load upfront
+        skipScroll: true,
+        // District only fetches a card's image, and the next batch of events,
+        // once they are on screen. A very tall window puts the whole list on
+        // screen at once, which is quicker and more predictable than
+        // scrolling. (At 1080px high, about half the events came back with
+        // no image, and the second batch never loaded.)
+        viewport: { width: 1920, height: 12000 },
       })
 
       if (!html || html.length < 100) {

@@ -12,6 +12,7 @@ import Footer from '../components/Footer'
 import { PWAInstallPrompt } from '../components/PWAInstallPrompt'
 
 import appCss from '../styles.css?url'
+import { DEFAULT_SHARE_IMAGE, SITE_DESCRIPTION } from '../lib/site'
 import { ThemeProvider } from '../providers/ThemeProvider'
 import { PWAProvider } from '../providers/PWAProvider'
 import { Toaster } from '@/components/ui/sonner'
@@ -32,9 +33,21 @@ export const Route = createRootRoute({
       },
       {
         name: 'description',
-        content:
-          'Discover and explore upcoming events in Bangalore. Your go-to event aggregator for concerts, workshops, exhibitions, and more.',
+        content: SITE_DESCRIPTION,
       },
+      // Defaults for link previews (WhatsApp, Slack, X…). A page that sets
+      // the same tag in its own head — an event page, say — overrides these.
+      { property: 'og:site_name', content: 'oh eight oh' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:title', content: 'oh 8 oh - Bangalore Events' },
+      { property: 'og:description', content: SITE_DESCRIPTION },
+      { property: 'og:image', content: DEFAULT_SHARE_IMAGE },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'oh 8 oh - Bangalore Events' },
+      { name: 'twitter:description', content: SITE_DESCRIPTION },
+      { name: 'twitter:image', content: DEFAULT_SHARE_IMAGE },
       {
         name: 'theme-color',
         content: '#000000',

@@ -19,7 +19,7 @@ const config = defineConfig({
   plugins: [
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'o8o.svg', 'robots.txt'],
+      includeAssets: ['favicon.ico', 'o8o.svg'],
       // The web app manifest is the hand-written public/manifest.json (linked
       // from __root.tsx). Don't generate a second, diverging one here.
       manifest: false,

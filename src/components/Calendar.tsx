@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useRouter } from '@tanstack/react-router'
-import { getDayName, getMonthCalendar, getMonthName, parseEventDateToDate } from '../lib/utils/calendar'
+import { calendarDaysFor, dayKey, getDayName, getMonthCalendar, getMonthName } from '../lib/utils/calendar'
+import { getEventDates } from '../lib/utils/date-time'
 import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
@@ -23,9 +24,10 @@ export function Calendar({ events }: CalendarProps) {
   // Group events by date
   const eventsByDate = new Map<string, Array<Event>>()
   events.forEach((event) => {
-    const eventDate = parseEventDateToDate(event.date)
-    if (eventDate) {
-      const key = eventDate.toISOString().split('T')[0]
+    const dates = getEventDates(event.date)
+    if (!dates) return
+    for (const day of calendarDaysFor(dates.start, dates.end)) {
+      const key = dayKey(day)
       if (!eventsByDate.has(key)) {
         eventsByDate.set(key, [])
       }
@@ -100,7 +102,7 @@ export function Calendar({ events }: CalendarProps) {
           {weeks.map((week, weekIndex) => (
             <div key={weekIndex} className="grid grid-cols-7 gap-2">
               {week.map((day, dayIndex) => {
-                const dateKey = day.date.toISOString().split('T')[0]
+                const dateKey = dayKey(day.date)
                 const dayEvents = eventsByDate.get(dateKey) || []
 
                 return (

@@ -10,8 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SourcesRouteImport } from './routes/sources'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as MyEventsRouteImport } from './routes/my-events'
 import { Route as FeaturedRouteImport } from './routes/featured'
@@ -19,6 +22,7 @@ import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as BookmarksRouteImport } from './routes/bookmarks'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AddEventRouteImport } from './routes/add-event'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EventFingerprintRouteImport } from './routes/event.$fingerprint'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
@@ -30,6 +34,16 @@ const SourcesRoute = SourcesRouteImport.update({
   path: '/sources',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -38,6 +52,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OfflineRoute = OfflineRouteImport.update({
@@ -75,6 +94,11 @@ const AddEventRoute = AddEventRouteImport.update({
   path: '/add-event',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -103,6 +127,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/add-event': typeof AddEventRoute
   '/auth': typeof AuthRoute
   '/bookmarks': typeof BookmarksRoute
@@ -110,8 +135,11 @@ export interface FileRoutesByFullPath {
   '/featured': typeof FeaturedRoute
   '/my-events': typeof MyEventsRoute
   '/offline': typeof OfflineRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sources': typeof SourcesRoute
   '/admin/review-events': typeof AdminReviewEventsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -120,6 +148,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/add-event': typeof AddEventRoute
   '/auth': typeof AuthRoute
   '/bookmarks': typeof BookmarksRoute
@@ -127,8 +156,11 @@ export interface FileRoutesByTo {
   '/featured': typeof FeaturedRoute
   '/my-events': typeof MyEventsRoute
   '/offline': typeof OfflineRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sources': typeof SourcesRoute
   '/admin/review-events': typeof AdminReviewEventsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -138,6 +170,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/add-event': typeof AddEventRoute
   '/auth': typeof AuthRoute
   '/bookmarks': typeof BookmarksRoute
@@ -145,8 +178,11 @@ export interface FileRoutesById {
   '/featured': typeof FeaturedRoute
   '/my-events': typeof MyEventsRoute
   '/offline': typeof OfflineRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sources': typeof SourcesRoute
   '/admin/review-events': typeof AdminReviewEventsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -157,6 +193,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/add-event'
     | '/auth'
     | '/bookmarks'
@@ -164,8 +201,11 @@ export interface FileRouteTypes {
     | '/featured'
     | '/my-events'
     | '/offline'
+    | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/sources'
     | '/admin/review-events'
     | '/admin/users'
@@ -174,6 +214,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/add-event'
     | '/auth'
     | '/bookmarks'
@@ -181,8 +222,11 @@ export interface FileRouteTypes {
     | '/featured'
     | '/my-events'
     | '/offline'
+    | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/sources'
     | '/admin/review-events'
     | '/admin/users'
@@ -191,6 +235,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/add-event'
     | '/auth'
     | '/bookmarks'
@@ -198,8 +243,11 @@ export interface FileRouteTypes {
     | '/featured'
     | '/my-events'
     | '/offline'
+    | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/sources'
     | '/admin/review-events'
     | '/admin/users'
@@ -209,6 +257,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   AddEventRoute: typeof AddEventRoute
   AuthRoute: typeof AuthRoute
   BookmarksRoute: typeof BookmarksRoute
@@ -216,8 +265,11 @@ export interface RootRouteChildren {
   FeaturedRoute: typeof FeaturedRoute
   MyEventsRoute: typeof MyEventsRoute
   OfflineRoute: typeof OfflineRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SourcesRoute: typeof SourcesRoute
   AdminReviewEventsRoute: typeof AdminReviewEventsRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -234,6 +286,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -246,6 +312,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/offline': {
@@ -297,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AddEventRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -337,6 +417,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   AddEventRoute: AddEventRoute,
   AuthRoute: AuthRoute,
   BookmarksRoute: BookmarksRoute,
@@ -344,8 +425,11 @@ const rootRouteChildren: RootRouteChildren = {
   FeaturedRoute: FeaturedRoute,
   MyEventsRoute: MyEventsRoute,
   OfflineRoute: OfflineRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SourcesRoute: SourcesRoute,
   AdminReviewEventsRoute: AdminReviewEventsRoute,
   AdminUsersRoute: AdminUsersRoute,

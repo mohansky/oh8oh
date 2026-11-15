@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { Calendar } from '../components/Calendar'
 import { getCachedEvents } from '../lib/cache/events-cache'
-import { isUpcomingEvent } from '../lib/utils/date-time'
 import type {Event} from '../lib/scrapers';
 
 interface CalendarData {
@@ -17,47 +16,13 @@ const getCalendarEvents = createServerFn({
   const env = getCloudflareEnv(ctx)
   const result = await getCachedEvents(env, getWaitUntil(ctx))
 
-  // Also fetch approved user-submitted events
-  const { db } = await import('../db')
-  const { userEvents: userEventsTable, removedEvents } = await import('../db/schema')
-  const { eq } = await import('drizzle-orm')
-  const { generateEventFingerprint } = await import('../lib/utils/event-fingerprint')
-
-  const userEventsData = await db
-    .select()
-    .from(userEventsTable)
-    .where(eq(userEventsTable.status, 'approved'))
-
-  // Convert to Event format
-  const userEvents = userEventsData.map((event) => ({
-    id: event.id,
-    title: event.title,
-    date: event.date,
-    time: event.time,
-    link: event.link,
-    description: event.description || '',
-    category: event.category || '',
-    image: event.image || '',
-    venue: event.venue || '',
-    price: event.price || '',
-    source: 'user-submitted',
-  }))
-
-  // Merge events
-  const allEvents = [...result.events, ...userEvents]
-
-  // Get removed event fingerprints
-  const removedEventsData = await db.select().from(removedEvents)
-  const removedFingerprints = new Set(removedEventsData.map((r) => r.eventFingerprint))
-
-  // Filter out removed events and only show upcoming events
-  const filteredEvents = allEvents.filter((event) => {
-    const fingerprint = generateEventFingerprint(event)
-    return !removedFingerprints.has(fingerprint) && isUpcomingEvent(event.date)
-  })
+  // Add approved host submissions; drop removed and already-finished events
+  const { withApprovedAndWithoutRemoved } = await import(
+    '../lib/server/visible-events'
+  )
 
   return {
-    events: filteredEvents,
+    events: await withApprovedAndWithoutRemoved(result.events),
   }
 })
 

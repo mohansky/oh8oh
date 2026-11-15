@@ -27,6 +27,7 @@ interface EventFiltersProps {
   showSourceFilter?: boolean
   cacheAge?: number
   onRefresh?: () => void
+  onFullRefresh?: () => void
   isRefreshing?: boolean
   isAdmin?: boolean
 }
@@ -47,6 +48,7 @@ export function EventFilters({
   totalCount,
   cacheAge,
   onRefresh,
+  onFullRefresh,
   isRefreshing,
   isAdmin = false,
 }: EventFiltersProps) {
@@ -59,19 +61,37 @@ export function EventFilters({
             {cacheAge === 0 ? (
               <span>✨ Fresh data</span>
             ) : (
-              <span>Last updated {cacheAge} {cacheAge === 1 ? 'minute' : 'minutes'} ago</span>
+              <span>
+                Last updated {cacheAge} {cacheAge === 1 ? 'minute' : 'minutes'}{' '}
+                ago
+              </span>
             )}
           </div>
-          <Button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
+          <div className="flex gap-2">
+            {onFullRefresh && (
+              <Button
+                onClick={onFullRefresh}
+                disabled={isRefreshing}
+                variant="ghost"
+                size="sm"
+                title="Run every scraper, like the nightly job. Takes a few minutes."
+              >
+                Full refresh
+              </Button>
+            )}
+            <Button
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+              />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -80,7 +100,7 @@ export function EventFilters({
         {/* Search */}
         <InputGroup className="flex-1 min-w-60">
           <InputGroupInput
-          type="text"
+            type="text"
             placeholder="Search by title or venue..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -88,7 +108,9 @@ export function EventFilters({
           <InputGroupAddon>
             <Search />
           </InputGroupAddon>
-          <InputGroupAddon align="inline-end">{filteredCount}/{totalCount}</InputGroupAddon>
+          <InputGroupAddon align="inline-end">
+            {filteredCount}/{totalCount}
+          </InputGroupAddon>
         </InputGroup>
 
         {/* Category Filter */}

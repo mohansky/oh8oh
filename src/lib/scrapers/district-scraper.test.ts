@@ -136,3 +136,54 @@ describe('parseDistrictEvents', () => {
     expect(event.link).toBe('https://www.district.in/events/x')
   })
 })
+
+describe('parseDistrictEvents images', () => {
+  const event = {
+    href: 'https://www.district.in/events/shreya-ghoshal-buy-tickets',
+    venue: 'Airtel Arena, Bengaluru',
+    title: 'Shreya Ghoshal',
+    date: 'Sun, 22 Nov, 6:00 PM',
+    price: '₹2500 onwards',
+  }
+  const structuredData = (images: Array<string>) => `
+    <script type="application/ld+json">${JSON.stringify({
+      '@type': 'ItemList',
+      itemListElement: [{ '@type': 'ListItem', item: { '@type': 'Event', url: event.href, image: images } }],
+    })}</script>`
+
+  it('prefers the landscape cover from the structured data', () => {
+    const html =
+      carouselCard(event) +
+      structuredData([
+        'https://cdn.district.in/event_cover_image_vertical/a.jpg',
+        'https://cdn.district.in/event_cover_image_horizontal/b.jpg',
+      ])
+    expect(parseDistrictEvents(html, now)[0].image).toBe(
+      'https://cdn.district.in/event_cover_image_horizontal/b.jpg',
+    )
+  })
+
+  it('gives a list-only card an image from the structured data', () => {
+    const html = listCard(event) + structuredData(['https://cdn.district.in/event_cover_image_vertical/a.jpg'])
+    expect(parseDistrictEvents(html, now)[0].image).toBe(
+      'https://cdn.district.in/event_cover_image_vertical/a.jpg',
+    )
+  })
+
+  it('reads the image from an <img> in a list card once it has loaded', () => {
+    const html = `<a href="${event.href}"><div class="item-cards">
+      <img alt="x" src="https://cdn.district.in/event_cover_image_vertical/c.jpeg">
+      <span class="dds-text-quaternary">${event.date}</span>
+      <h5 class="dds-text-primary">${event.title}</h5>
+      <span class="dds-text-secondary">${event.venue}</span>
+    </div></a>`
+    expect(parseDistrictEvents(html, now)[0].image).toBe(
+      'https://cdn.district.in/event_cover_image_vertical/c.jpeg',
+    )
+  })
+
+  it('ignores structured data it cannot parse', () => {
+    const html = listCard(event) + '<script type="application/ld+json">{oops</script>'
+    expect(parseDistrictEvents(html, now)).toHaveLength(1)
+  })
+})

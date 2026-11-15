@@ -1,23 +1,29 @@
-import { parseEventDateToDate } from './calendar'
+import { getEventDates } from './date-time'
 import { generateEventFingerprint } from './event-fingerprint'
 import type { Event } from '../scrapers/types'
 
 // Generate ICS (iCalendar) file content for an event
 export function generateICS(event: Event): string {
-  const eventDate = parseEventDateToDate(event.date)
+  const dates = getEventDates(event.date)
 
-  if (!eventDate) {
+  if (!dates) {
     throw new Error('Invalid event date')
   }
 
-  // Parse time if available
-  const startDateTime = new Date(eventDate)
-  let endDateTime = new Date(eventDate)
+  const isMultiDay = dates.start.getTime() !== dates.end.getTime()
 
-  if (event.time) {
+  // Parse time if available
+  const startDateTime = new Date(dates.start)
+  let endDateTime = new Date(dates.end)
+  let isAllDay = true
+
+  // A multi-day event is exported as all-day across its whole run; a start
+  // time only makes sense for a single day.
+  if (event.time && !isMultiDay) {
     // Try to parse time (e.g., "7:00 PM", "19:00", etc.)
     const timeMatch = event.time.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i)
     if (timeMatch) {
+      isAllDay = false
       let hours = parseInt(timeMatch[1])
       const minutes = parseInt(timeMatch[2] || '0')
       const meridiem = timeMatch[3]?.toUpperCase()
@@ -56,7 +62,6 @@ export function generateICS(event: Event): string {
     return `${year}${month}${day}T${hours}${minutes}${seconds}`
   }
 
-  const isAllDay = !event.time
   const now = new Date()
 
   // Escape special characters in ICS format
