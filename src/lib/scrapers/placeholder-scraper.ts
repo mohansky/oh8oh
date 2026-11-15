@@ -1,4 +1,4 @@
-import { EventScraper, ScraperResult } from './types'
+import type { EventScraper, ScraperResult } from './types'
 
 /**
  * Creates a placeholder scraper for websites that require special handling
@@ -10,7 +10,7 @@ export function createPlaceholderScraper(
   id: string,
   name: string,
   website: string,
-  message: string = 'This scraper is not yet implemented',
+  _message: string = 'This scraper is not yet implemented',
 ): EventScraper {
   return {
     id,

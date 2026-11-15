@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
 import { Event } from '../lib/scrapers/types'
-import { getMonthCalendar, getMonthName, getDayName, parseEventDateToDate, isSameDay } from '../lib/utils/calendar'
+import { getMonthCalendar, getMonthName, getDayName, parseEventDateToDate } from '../lib/utils/calendar'
 import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
 import { useRouter } from '@tanstack/react-router'
 

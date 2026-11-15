@@ -45,12 +45,17 @@ const html = await fetchRenderedHTML(env.BROWSER, url, options)
 ### Scrapers
 Each scraper exports an object implementing the `EventScraper` interface:
 
-- **bookmyshow-scraper.ts** - BookMyShow events
-- **skillboxes-scraper.ts** - Skillboxes workshops
-- **urbanaut-scraper.ts** - Urbanaut events
-- **district-scraper.ts** - District events
-- **total-environment-scraper.ts** - Total Environment music events
-- **sabha-scraper.ts** - Sabha cultural events
+- **bic-scraper.ts** - Bangalore International Centre (fetch)
+- **iha-scraper.ts** - Indian Heritage Academy (fetch)
+- **ime-scraper.ts** - Indian Music Experience (fetch)
+- **map-scraper.ts** - MAP / Museum of Art & Photography (Puppeteer)
+- **skillboxes-scraper.ts** - Skillboxes workshops (Puppeteer)
+- **urbanaut-scraper.ts** - Urbanaut events (fetch, SSR)
+- **district-scraper.ts** - District events (Puppeteer)
+- **total-environment-scraper.ts** - Total Environment music events (JSON API)
+- **sabha-scraper.ts** - Sabha cultural events (Puppeteer)
+
+See [SCRAPERS.md](../../../SCRAPERS.md) for per-scraper status.
 
 ## Creating a New Scraper
 

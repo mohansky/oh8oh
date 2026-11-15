@@ -51,30 +51,39 @@ export default function Header() {
 
   return (
     <>
-      <header className="py-4 px-6">
+      <header className="py-4 lg:px-6">
         <Menubar className="flex items-center justify-between p-4 shadow-none border-0">
-          <h1 className="ml-4 text-xl font-semibold">
+          <h1 className="ml-1 lg:ml-4 text-xl font-semibold">
             <Link to="/">
               <Image
                 src="/o8o.svg"
                 alt="oh eight oh"
-                width={50}
+                width={100}
                 height={50}
                 className="h-10"
               />
             </Link>
-            <p className="sr-only">YENN SCENE</p>
+            <p className="sr-only">oh eight oh</p>
           </h1>
           <NavigationMenu>
             <NavigationMenuList>
+              {/* <NavigationMenuLink asChild>
+                <Link to="/">Home</Link>
+              </NavigationMenuLink> */}
               <NavigationMenuLink asChild>
-                <Link to="/calendar">Calendar</Link>
+                <Link to="/calendar" title='Calendar'>
+                  Calendar
+                </Link>
               </NavigationMenuLink>
               <NavigationMenuLink asChild>
-                <Link to="/featured">Featured</Link>
+                <Link to="/featured" title='Featured'>
+                  Featured
+                </Link>
               </NavigationMenuLink>
               <NavigationMenuLink asChild>
-                <Link to="/bookmarks">Bookmarked</Link>
+                <Link to="/bookmarks" title='Bookmarked'>
+                  Bookmarked
+                </Link>
               </NavigationMenuLink>
             </NavigationMenuList>
           </NavigationMenu>
@@ -138,18 +147,12 @@ export default function Header() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  title='Sign In'
                   onClick={() => navigate({ to: '/auth' })}
                 >
                   <LogIn className="mr-2 h-4 w-4" />
                   Sign In
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => navigate({ to: '/auth' })}
-                >
-                  Sign Up
-                </Button>
+                </Button> 
               </div>
             )}
           </div>

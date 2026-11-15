@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio'
 import { EventScraper, ScraperResult } from './types'
-import { fetchRenderedHTML } from './puppeteer-helper'
+import { fetchRenderedHTML } from './browser-helper'
 import { categorizeEvent } from '../utils/categorize-event'
 
 export const sabhaScraper: EventScraper = {
@@ -10,10 +10,10 @@ export const sabhaScraper: EventScraper = {
   enabled: true, // Re-enabled after fixing Puppeteer helper hangs
   priority: 'low', // Run sequentially with other Puppeteer scrapers
 
-  scrape: async (): Promise<ScraperResult> => {
+  scrape: async (env?: any): Promise<ScraperResult> => {
     try {
       // Use Puppeteer to render the JavaScript
-      const html = await fetchRenderedHTML('https://www.sabhablr.in/events', {
+      const html = await fetchRenderedHTML(env?.BROWSER, 'https://www.sabhablr.in/events', {
         waitUntil: 'domcontentloaded', // Faster than networkidle0, sufficient for static content
         timeout: 30000,
         skipScroll: true, // Wix loads all events upfront, no need to scroll

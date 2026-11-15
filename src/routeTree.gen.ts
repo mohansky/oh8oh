@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SourcesRouteImport } from './routes/sources'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as MyEventsRouteImport } from './routes/my-events'
@@ -27,6 +28,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const SourcesRoute = SourcesRouteImport.update({
   id: '/sources',
   path: '/sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/my-events': typeof MyEventsRoute
   '/offline': typeof OfflineRoute
   '/profile': typeof ProfileRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sources': typeof SourcesRoute
   '/admin/review-events': typeof AdminReviewEventsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/my-events': typeof MyEventsRoute
   '/offline': typeof OfflineRoute
   '/profile': typeof ProfileRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sources': typeof SourcesRoute
   '/admin/review-events': typeof AdminReviewEventsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/my-events': typeof MyEventsRoute
   '/offline': typeof OfflineRoute
   '/profile': typeof ProfileRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sources': typeof SourcesRoute
   '/admin/review-events': typeof AdminReviewEventsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/my-events'
     | '/offline'
     | '/profile'
+    | '/reset-password'
     | '/sources'
     | '/admin/review-events'
     | '/admin/users'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/my-events'
     | '/offline'
     | '/profile'
+    | '/reset-password'
     | '/sources'
     | '/admin/review-events'
     | '/admin/users'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/my-events'
     | '/offline'
     | '/profile'
+    | '/reset-password'
     | '/sources'
     | '/admin/review-events'
     | '/admin/users'
@@ -205,6 +217,7 @@ export interface RootRouteChildren {
   MyEventsRoute: typeof MyEventsRoute
   OfflineRoute: typeof OfflineRoute
   ProfileRoute: typeof ProfileRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SourcesRoute: typeof SourcesRoute
   AdminReviewEventsRoute: typeof AdminReviewEventsRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -219,6 +232,13 @@ declare module '@tanstack/react-router' {
       path: '/sources'
       fullPath: '/sources'
       preLoaderRoute: typeof SourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   MyEventsRoute: MyEventsRoute,
   OfflineRoute: OfflineRoute,
   ProfileRoute: ProfileRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SourcesRoute: SourcesRoute,
   AdminReviewEventsRoute: AdminReviewEventsRoute,
   AdminUsersRoute: AdminUsersRoute,

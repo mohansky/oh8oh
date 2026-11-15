@@ -6,12 +6,20 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
 
 const config = defineConfig({
+  resolve: {
+    alias: {
+      'cross-fetch': require.resolve('cross-fetch/dist/browser-ponyfill.js'),
+    },
+  },
   plugins: [
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'favicon.png', 'o8o.png', 'o8o.svg', 'robots.txt'],
+      includeAssets: ['favicon.ico', 'o8o.svg', 'robots.txt'],
       manifest: {
         short_name: 'oh8oh',
         name: 'oh eight oh - Bangalore Events',
@@ -23,13 +31,49 @@ const config = defineConfig({
             type: 'image/x-icon'
           },
           {
-            src: 'favicon.png',
+            src: 'logo72.png',
+            type: 'image/png',
+            sizes: '72x72',
+            purpose: 'any'
+          },
+          {
+            src: 'logo96.png',
+            type: 'image/png',
+            sizes: '96x96',
+            purpose: 'any'
+          },
+          {
+            src: 'logo128.png',
+            type: 'image/png',
+            sizes: '128x128',
+            purpose: 'any'
+          },
+          {
+            src: 'logo144.png',
+            type: 'image/png',
+            sizes: '144x144',
+            purpose: 'any'
+          },
+          {
+            src: 'logo152.png',
+            type: 'image/png',
+            sizes: '152x152',
+            purpose: 'any'
+          },
+          {
+            src: 'logo192.png',
             type: 'image/png',
             sizes: '192x192',
             purpose: 'any'
           },
           {
-            src: 'o8o.png',
+            src: 'logo384.png',
+            type: 'image/png',
+            sizes: '384x384',
+            purpose: 'any'
+          },
+          {
+            src: 'logo512.png',
             type: 'image/png',
             sizes: '512x512',
             purpose: 'any'
@@ -82,18 +126,8 @@ const config = defineConfig({
             }
           },
           {
-            urlPattern: /\/api\/.*\/*.json/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 5 // 5 minutes
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            handler: 'NetworkOnly',
           },
           {
             urlPattern: /\.(png|jpg|jpeg|svg|gif|webp)$/,

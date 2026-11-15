@@ -89,7 +89,7 @@ export function EventFilters({
 
         {/* Category Filter */}
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-45">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>

@@ -64,7 +64,7 @@ export function PWAInstallPrompt() {
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:max-w-md">
       <Card className="p-4 bg-zinc-900 border-zinc-800 shadow-xl">
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 mt-1">
+          <div className="shrink-0 mt-1">
             <Download className="h-5 w-5 text-blue-500" />
           </div>
           <div className="flex-1 min-w-0">
@@ -94,7 +94,7 @@ export function PWAInstallPrompt() {
           </div>
           <button
             onClick={handleDismiss}
-            className="flex-shrink-0 text-gray-500 hover:text-white transition-colors"
+            className="shrink-0 text-gray-500 hover:text-white transition-colors"
             aria-label="Close"
           >
             <X className="h-4 w-4" />

@@ -1,55 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
+import { Search } from 'lucide-react'
 import { EventCard } from '../components/EventCard'
 import { EventCardSkeleton } from '../components/EventCardSkeleton'
 import { getUserBookmarks } from '../lib/db/bookmarks-db'
 import type { Event } from '../lib/scrapers/types'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
 
 // Server function to get user's bookmarks
 const getBookmarks = createServerFn({
   method: 'GET',
-}).handler(async (ctx: any): Promise<Event[]> => {
+}).handler(async (ctx: any): Promise<Array<Event>> => {
   try {
-    // Access request from handler context
-    const request = ctx.request
+    const { getSessionUser, headersFromCtx } = await import('../lib/server/session')
+    const user = await getSessionUser(headersFromCtx(ctx))
 
-    if (!request || !request.headers) {
-      console.error('No request object in context')
+    if (!user) {
       return []
     }
 
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return []
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
-
-    const { db } = await import('../db')
-    const { session: sessionTable } = await import('../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return []
-    }
-
-    const userId = sessionData[0].userId
-    return await getUserBookmarks(userId)
+    return await getUserBookmarks(user.id)
   } catch (error) {
     console.error('Failed to get bookmarks:', error)
     return []

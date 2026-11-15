@@ -8,8 +8,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
 
     // Dynamically import PWA register to avoid SSR issues
     import('virtual:pwa-register/react')
-      .then(({ useRegisterSW }) => {
-        // This won't work as a hook, so we'll do manual registration
+      .then(() => {
+        // We do manual service-worker registration below (not the hook)
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
             navigator.serviceWorker

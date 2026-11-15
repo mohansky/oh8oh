@@ -20,6 +20,7 @@ const MONTH_MAP: { [key: string]: number } = {
   aug: 7,
   august: 7,
   sep: 8,
+  sept: 8, // Sabha writes "13 Sept 2026"
   september: 8,
   oct: 9,
   october: 9,
@@ -149,17 +150,77 @@ export function processEventDateTime(event: {
   }
 }
 
+// Separator between the two halves of a date range: "Jul 16 - Jul 30 2026",
+// "Aug 15, 2026 – Nov 1, 2026", "Jul 8 to Jul 12 2026".
+const DATE_RANGE_SEPARATOR = /\s+[-–—]\s+|\s+to\s+/i
+// A month name next to a day number, in either order ("Jul 30" / "30 Jul").
+const MONTH_AND_DAY = /[A-Za-z]{3,9}\.?,?\s+\d{1,2}|\d{1,2}\s+[A-Za-z]{3,9}/
+
 /**
- * Check if an event is in the future
+ * Parse the LAST day of an event. For a single-day event this is the same as
+ * parseEventDate; for a date range it is the range's end date, which
+ * parseEventDate cannot read at all (it returns null for the whole string).
+ *
+ * The right-hand side only counts as a date when it carries a 4-digit year and
+ * a month+day, so time ranges such as "06 Nov 2025, 4:00 pm – 7:00 pm" are not
+ * mistaken for date ranges.
+ */
+export function parseEventEndDate(dateString: string): Date | null {
+  if (!dateString) return null
+
+  const parts = dateString.split(DATE_RANGE_SEPARATOR)
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1].trim()
+    if (/\d{4}/.test(last) && MONTH_AND_DAY.test(last)) {
+      const end = parseEventDate(last)
+      if (end) return end
+    }
+  }
+
+  return parseEventDate(dateString)
+}
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
+
+function toDayKey(year: number, month: number, day: number): number {
+  return year * 10000 + month * 100 + day
+}
+
+/**
+ * Today's calendar date in Bangalore (IST), as a comparable number.
+ * Computed from UTC so the answer is the same on the server (Workers run in
+ * UTC) and in the browser, wherever either happens to be.
+ */
+function todayKeyIST(now: Date): number {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS)
+  return toDayKey(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate())
+}
+
+/**
+ * True when the event's last day is before today in Bangalore.
+ * Events whose date can't be parsed ("Check website for dates") are never
+ * considered ended here — staleness for those is judged by when they were
+ * last seen on the source site (see events-db).
+ */
+export function hasEventEnded(dateString: string, now: Date = new Date()): boolean {
+  const endDate = parseEventEndDate(dateString)
+  if (!endDate) return false
+
+  // Parsed event dates are wall-clock dates in the runtime's local zone, so
+  // read them back with local getters to recover the calendar day.
+  const eventKey = toDayKey(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate(),
+  )
+  return eventKey < todayKeyIST(now)
+}
+
+/**
+ * Check if an event is in the future (or still running, for date ranges)
  */
 export function isUpcomingEvent(dateString: string): boolean {
-  const eventDate = parseEventDate(dateString)
-  if (!eventDate) return true // Keep events with no date
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  return eventDate >= today
+  return !hasEventEnded(dateString)
 }
 
 /**

@@ -23,3 +23,8 @@ dev-dist
 # IDE
 .vscode
 .idea
+
+# Guides
+.guides
+# Claude Code local settings
+.claude/settings.local.json

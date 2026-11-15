@@ -1,6 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
 import { nanoid } from 'nanoid'
-import { uploadImageToR2 } from '../r2-upload'
+import { decodeAndValidateImage, isSafeHttpUrl } from '../utils/validation'
+import {
+  getCloudflareEnv,
+  getSessionUser,
+  headersFromCtx,
+  requireRole,
+} from './session'
 
 interface CreateEventData {
   title: string
@@ -47,71 +53,38 @@ export const createUserEvent = createServerFn({
   const eventData = ctx.data as CreateEventData
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
+    const user = await requireRole(headersFromCtx(ctx), ['admin', 'host'])
+    const userId = user.id
 
-    // Get user from session
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
+    // Reject unsafe links (javascript:, data:, etc.) — they render as hrefs
+    if (!isSafeHttpUrl(eventData.link)) {
+      throw new Error('Event link must be a valid http(s) URL')
     }
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin or host role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin' && user.role !== 'host') {
-      throw new Error('Unauthorized: Only admins and hosts can create events')
-    }
+    const { userEvents } = await import('../../db/schema')
 
     // Upload image to R2 if provided
     let imageUrl = eventData.image || null
 
     if (eventData.imageData && eventData.imageFileName && eventData.imageType) {
+      // Validate + decode with size/MIME enforcement (throws on invalid input)
+      const { bytes, contentType, fileName } = decodeAndValidateImage(
+        eventData.imageData,
+        eventData.imageType,
+      )
       try {
-        // Convert base64 to Buffer
-        const base64Data = eventData.imageData.split(',')[1] // Remove data:image/xxx;base64, prefix
-        const buffer = Buffer.from(base64Data, 'base64')
-
-        // Upload to R2
-        imageUrl = await uploadImageToR2(buffer, eventData.imageFileName, eventData.imageType)
+        // Get R2 binding from Cloudflare context
+        const r2 = getCloudflareEnv(ctx)?.R2
+        if (r2) {
+          const { uploadImageToR2 } = await import('../r2-upload')
+          imageUrl = await uploadImageToR2(r2, bytes, fileName, contentType)
+        } else {
+          console.warn('R2 binding not available, skipping image upload')
+        }
       } catch (error) {
+        // A transient R2 failure shouldn't block event creation
         console.error('Failed to upload image to R2:', error)
-        // Continue without image rather than failing the whole event creation
         imageUrl = null
       }
     }
@@ -133,7 +106,8 @@ export const createUserEvent = createServerFn({
       venue: eventData.venue || null,
       price: eventData.price || null,
       status: 'pending', // All events require admin review
-      featured: eventData.featured || false,
+      // Only admins may feature events; hosts cannot self-promote
+      featured: user.role === 'admin' ? eventData.featured || false : false,
       createdAt: now,
       updatedAt: now,
     })
@@ -224,65 +198,24 @@ export const getFeaturedEvents = createServerFn({
 // Get current user's events
 export const getMyEvents = createServerFn({
   method: 'GET',
-}).handler(async (ctx: any): Promise<UserEvent[]> => {
+}).handler(async (ctx: any): Promise<Array<UserEvent>> => {
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
+    const user = await getSessionUser(headersFromCtx(ctx))
+    if (!user || (user.role !== 'admin' && user.role !== 'host')) {
       return []
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return []
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
     }
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return []
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin or host role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      return []
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin' && user.role !== 'host') {
-      return []
-    }
 
     // Get user's events
     const events = await db
       .select()
       .from(userEvents)
-      .where(eq(userEvents.userId, userId))
+      .where(eq(userEvents.userId, user.id))
 
-    return events as UserEvent[]
+    return events as Array<UserEvent>
   } catch (error) {
     console.error('Failed to get user events:', error)
     return []
@@ -296,55 +229,17 @@ export const updateUserEvent = createServerFn({
   const eventData = ctx.data as UpdateEventData
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
+    const user = await requireRole(headersFromCtx(ctx), ['admin', 'host'])
+    const userId = user.id
 
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
+    // Reject unsafe links (javascript:, data:, etc.) — they render as hrefs
+    if (!isSafeHttpUrl(eventData.link)) {
+      throw new Error('Event link must be a valid http(s) URL')
     }
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq, and } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin or host role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin' && user.role !== 'host') {
-      throw new Error('Unauthorized: Only admins and hosts can update events')
-    }
 
     // Verify event belongs to user
     const existingEvent = await db
@@ -361,24 +256,37 @@ export const updateUserEvent = createServerFn({
     let imageUrl = eventData.image || existingEvent[0].image
 
     if (eventData.imageData && eventData.imageFileName && eventData.imageType) {
+      // Validate + decode with size/MIME enforcement (throws on invalid input)
+      const { bytes, contentType, fileName } = decodeAndValidateImage(
+        eventData.imageData,
+        eventData.imageType,
+      )
       try {
-        // Convert base64 to Buffer
-        const base64Data = eventData.imageData.split(',')[1] // Remove data:image/xxx;base64, prefix
-        const buffer = Buffer.from(base64Data, 'base64')
+        // Get R2 binding from Cloudflare context
+        const r2 = getCloudflareEnv(ctx)?.R2
+        if (r2) {
+          const { uploadImageToR2 } = await import('../r2-upload')
+          imageUrl = await uploadImageToR2(r2, bytes, fileName, contentType)
 
-        // Upload to R2
-        imageUrl = await uploadImageToR2(buffer, eventData.imageFileName, eventData.imageType)
-
-        // TODO: Optionally delete old image from R2 if it exists
-        // if (existingEvent[0].image) {
-        //   await deleteImageFromR2(existingEvent[0].image)
-        // }
+          // TODO: Optionally delete old image from R2 if it exists
+          // if (existingEvent[0].image) {
+          //   await deleteImageFromR2(r2, existingEvent[0].image)
+          // }
+        } else {
+          console.warn('R2 binding not available, skipping image upload')
+        }
       } catch (error) {
         console.error('Failed to upload image to R2:', error)
         // Keep existing image on upload failure
         imageUrl = existingEvent[0].image
       }
     }
+
+    // Only admins may change the featured flag; hosts keep the existing value
+    const featured =
+      user.role === 'admin'
+        ? eventData.featured || false
+        : existingEvent[0].featured
 
     // Update the event
     await db
@@ -393,7 +301,7 @@ export const updateUserEvent = createServerFn({
         image: imageUrl,
         venue: eventData.venue || null,
         price: eventData.price || null,
-        featured: eventData.featured || false,
+        featured,
         updatedAt: new Date(),
       })
       .where(eq(userEvents.id, eventData.id))
@@ -412,55 +320,12 @@ export const deleteUserEvent = createServerFn({
   const { eventId } = ctx.data as { eventId: string }
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
+    const user = await requireRole(headersFromCtx(ctx), ['admin', 'host'])
+    const userId = user.id
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq, and } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin or host role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin' && user.role !== 'host') {
-      throw new Error('Unauthorized: Only admins and hosts can delete events')
-    }
 
     // Verify event belongs to user
     const existingEvent = await db
@@ -486,57 +351,16 @@ export const deleteUserEvent = createServerFn({
 // Admin: Get all pending events for review
 export const getPendingEvents = createServerFn({
   method: 'GET',
-}).handler(async (ctx: any): Promise<UserEvent[]> => {
+}).handler(async (ctx: any): Promise<Array<UserEvent>> => {
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
+    const user = await getSessionUser(headersFromCtx(ctx))
+    if (!user || user.role !== 'admin') {
       return []
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return []
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
     }
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq, or } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return []
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      return []
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin') {
-      return []
-    }
 
     // Get all pending and rejected events for review
     const events = await db
@@ -544,7 +368,7 @@ export const getPendingEvents = createServerFn({
       .from(userEvents)
       .where(or(eq(userEvents.status, 'pending'), eq(userEvents.status, 'rejected')))
 
-    return events as UserEvent[]
+    return events as Array<UserEvent>
   } catch (error) {
     console.error('Failed to get pending events:', error)
     return []
@@ -558,55 +382,11 @@ export const approveEvent = createServerFn({
   const { eventId } = ctx.data as { eventId: string }
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
+    await requireRole(headersFromCtx(ctx), ['admin'])
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents, removedEvents } = await import('../../db/schema')
+    const { userEvents, removedEvents } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin') {
-      throw new Error('Unauthorized: Only admins can approve events')
-    }
 
     // Get event details to generate fingerprint
     const eventData = await db
@@ -658,55 +438,11 @@ export const rejectEvent = createServerFn({
   const { eventId } = ctx.data as { eventId: string }
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
+    await requireRole(headersFromCtx(ctx), ['admin'])
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin') {
-      throw new Error('Unauthorized: Only admins can reject events')
-    }
 
     // Update event status to rejected
     await db
@@ -731,55 +467,11 @@ export const adminDeleteEvent = createServerFn({
   const { eventId } = ctx.data as { eventId: string }
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
+    await requireRole(headersFromCtx(ctx), ['admin'])
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin') {
-      throw new Error('Unauthorized: Only admins can delete any event')
-    }
 
     // Delete the event (admin can delete any event)
     await db.delete(userEvents).where(eq(userEvents.id, eventId))
@@ -798,55 +490,11 @@ export const removeEventFromList = createServerFn({
   const { eventId } = ctx.data as { eventId: string }
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
+    await requireRole(headersFromCtx(ctx), ['admin'])
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable, userEvents } = await import('../../db/schema')
+    const { userEvents } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin') {
-      throw new Error('Unauthorized: Only admins can remove events from list')
-    }
 
     // Update event status to pending (sends it back to review)
     await db
@@ -871,63 +519,15 @@ export const markEventAsRemoved = createServerFn({
   const { event } = ctx.data as { event: any }
 
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      throw new Error('No request object in context')
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      throw new Error('User not authenticated')
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
+    const admin = await requireRole(headersFromCtx(ctx), ['admin'])
+    const userId = admin.id
 
     const { db } = await import('../../db')
-    const {
-      session: sessionTable,
-      user: userTable,
-      removedEvents,
-      userEvents,
-    } = await import('../../db/schema')
+    const { removedEvents, userEvents } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
     const { generateEventFingerprint, hashEventFingerprint } = await import(
       '../utils/event-fingerprint'
     )
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      throw new Error('Invalid session')
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user has admin role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      throw new Error('User not found')
-    }
-
-    const user = userData[0]
-    if (user.role !== 'admin') {
-      throw new Error('Unauthorized: Only admins can remove events')
-    }
 
     // Generate fingerprint for the event
     const fingerprint = generateEventFingerprint(event)
@@ -999,7 +599,7 @@ export const markEventAsRemoved = createServerFn({
 // Get all removed event fingerprints (for filtering)
 export const getRemovedEventFingerprints = createServerFn({
   method: 'GET',
-}).handler(async (): Promise<string[]> => {
+}).handler(async (): Promise<Array<string>> => {
   try {
     const { db } = await import('../../db')
     const { removedEvents } = await import('../../db/schema')

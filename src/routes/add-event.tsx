@@ -9,55 +9,11 @@ const checkUserRole = createServerFn({
   method: 'GET',
 }).handler(async (ctx: any) => {
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      return null
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return null
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
-
-    const { db } = await import('../db')
-    const { session: sessionTable, user: userTable } = await import('../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return null
-    }
-
-    const userId = sessionData[0].userId
-
-    // Get user to check role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      return null
-    }
-
-    const user = userData[0]
+    const { getSessionUser, headersFromCtx } = await import('../lib/server/session')
+    const user = await getSessionUser(headersFromCtx(ctx))
 
     // Check if user has admin or host role
-    if (user.role === 'admin' || user.role === 'host') {
+    if (user && (user.role === 'admin' || user.role === 'host')) {
       return {
         id: user.id,
         name: user.name,

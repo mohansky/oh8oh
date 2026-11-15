@@ -1,4 +1,4 @@
-import { Event } from '../scrapers/types'
+import type { Event } from '../scrapers/types'
 
 // Calculate similarity between two strings (0-1, where 1 is identical)
 function stringSimilarity(str1: string, str2: string): number {
@@ -91,7 +91,8 @@ function mergeEvents(event1: Event, event2: Event): Event {
 
     // Use longer description
     description:
-      !isGeneric(event1.description) && event1.description.length > event2.description.length
+      !isGeneric(event1.description) &&
+      (event1.description?.length ?? 0) > (event2.description?.length ?? 0)
         ? event1.description
         : event2.description,
 
@@ -103,7 +104,9 @@ function mergeEvents(event1: Event, event2: Event): Event {
 
     // Prefer more specific venue
     venue:
-      event1.venue && event1.venue !== 'Bangalore' && event1.venue.length > event2.venue.length
+      event1.venue &&
+      event1.venue !== 'Bangalore' &&
+      event1.venue.length > (event2.venue?.length ?? 0)
         ? event1.venue
         : event2.venue,
 
@@ -124,8 +127,8 @@ function mergeEvents(event1: Event, event2: Event): Event {
  * Deduplicates events from multiple sources, merging information
  * from duplicate events to create the most complete event records
  */
-export function deduplicateEvents(events: Event[]): Event[] {
-  const uniqueEvents: Event[] = []
+export function deduplicateEvents(events: Array<Event>): Array<Event> {
+  const uniqueEvents: Array<Event> = []
   const processedIndices = new Set<number>()
 
   for (let i = 0; i < events.length; i++) {

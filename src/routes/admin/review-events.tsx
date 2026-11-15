@@ -1,6 +1,8 @@
 import { createFileRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
+import { Calendar, CheckCircle, Clock, DollarSign, Edit, Eye, Link as LinkIcon, MapPin, Trash2, XCircle } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Table,
   TableBody,
@@ -15,20 +17,18 @@ import { Button } from '../../components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '../../components/ui/dialog'
-import { Calendar, Clock, MapPin, Link as LinkIcon, DollarSign, CheckCircle, XCircle, Trash2, Eye, Edit } from 'lucide-react'
 import {
-  getPendingEvents,
-  approveEvent,
-  rejectEvent,
   adminDeleteEvent,
+  approveEvent,
+  getPendingEvents,
+  rejectEvent,
 } from '../../lib/server/user-events'
 import { EventForm } from '../../components/EventForm'
-import { toast } from 'sonner'
 
 interface UserEvent {
   id: string
@@ -53,55 +53,11 @@ const checkAdminRole = createServerFn({
   method: 'GET',
 }).handler(async (ctx: any) => {
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      return null
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return null
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
-
-    const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return null
-    }
-
-    const userId = sessionData[0].userId
-
-    // Get user to check role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      return null
-    }
-
-    const user = userData[0]
+    const { getSessionUser, headersFromCtx } = await import('../../lib/server/session')
+    const user = await getSessionUser(headersFromCtx(ctx))
 
     // Check if user has admin role
-    if (user.role === 'admin') {
+    if (user && user.role === 'admin') {
       return {
         id: user.id,
         name: user.name,
@@ -139,7 +95,7 @@ function ReviewEventsPage() {
   const { events: initialEvents } = Route.useLoaderData()
   const navigate = useNavigate()
   const router = useRouter()
-  const [events, setEvents] = useState<UserEvent[]>(initialEvents)
+  const [events, setEvents] = useState<Array<UserEvent>>(initialEvents)
   const [previewEvent, setPreviewEvent] = useState<UserEvent | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { type Event } from '../lib/scrapers'
+import { toast } from 'sonner'
 import { getCachedEvents } from '../lib/cache/events-cache'
 import { EventCard } from '../components/EventCard'
 import { EventCardSkeleton } from '../components/EventCardSkeleton'
@@ -11,15 +11,16 @@ import { authClient } from '../lib/auth-client'
 // import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
 import { markEventAsRemoved } from '../lib/server/user-events'
 import { refreshEvents } from '../lib/server/events-refresh'
-import { toast } from 'sonner'
 import {
-  isUpcomingEvent,
   compareEventDateTimes,
+  hasEventEnded,
   isToday,
   isTomorrow,
+  isUpcomingEvent,
   isWeekend,
 } from '../lib/utils/date-time'
 import { getAllCategories, normalizeCategories } from '../lib/utils/categorize-event'
+import type {Event} from '../lib/scrapers';
 import {
   Pagination,
   PaginationContent,
@@ -31,7 +32,7 @@ import {
 } from '@/components/ui/pagination'
 
 interface ScrapedData {
-  events: Event[]
+  events: Array<Event>
   totalScrapers: number
   successCount: number
   errorCount: number
@@ -42,8 +43,10 @@ interface ScrapedData {
 // Server function to get events (cached or fresh)
 const scrapeEvents = createServerFn({
   method: 'GET',
-}).handler(async (): Promise<ScrapedData> => {
-  const result = await getCachedEvents()
+}).handler(async (ctx: any): Promise<ScrapedData> => {
+  const { getCloudflareEnv, getWaitUntil } = await import('../lib/server/session')
+  const env = getCloudflareEnv(ctx)
+  const result = await getCachedEvents(env, getWaitUntil(ctx))
 
   // Also fetch approved user-submitted events
   const { db } = await import('../db')
@@ -78,8 +81,10 @@ const scrapeEvents = createServerFn({
   const removedEventsData = await db.select().from(removedEvents)
   const removedFingerprints = new Set(removedEventsData.map((r) => r.eventFingerprint))
 
-  // Filter out removed events
+  // Filter out removed events, and events that are already over — the client
+  // only ever shows upcoming events, so don't ship the rest in the payload.
   const filteredEvents = allEvents.filter((event) => {
+    if (hasEventEnded(event.date)) return false
     const fingerprint = generateEventFingerprint(event)
     return !removedFingerprints.has(fingerprint)
   })
@@ -180,7 +185,7 @@ function EventsPage() {
   }
 
   // Venue alias mapping for common abbreviations
-  const venueAliases: { [key: string]: string[] } = {
+  const venueAliases: { [key: string]: Array<string> } = {
     'bangalore international centre': ['bic'],
     'museum of art & photography': ['map'],
     'indian heritage academy': ['iha'],

@@ -1,54 +1,29 @@
 /**
  * R2 Image Upload Handler
  *
- * This file handles image uploads to Cloudflare R2 bucket.
- *
- * Setup Instructions:
- * 1. Create an R2 bucket in your Cloudflare dashboard
- * 2. Get your R2 credentials:
- *    - Account ID
- *    - Access Key ID
- *    - Secret Access Key
- *    - Bucket Name
- * 3. Add to .env file:
- *    R2_ACCOUNT_ID=your_account_id
- *    R2_ACCESS_KEY_ID=your_access_key_id
- *    R2_SECRET_ACCESS_KEY=your_secret_access_key
- *    R2_BUCKET_NAME=your_bucket_name
- *    R2_PUBLIC_URL=https://your-bucket.r2.dev (or custom domain)
- * 4. Install AWS SDK: npm install @aws-sdk/client-s3
- * 5. Uncomment the code below
+ * Uses Cloudflare's native R2 binding for Workers compatibility.
+ * The R2 bucket is bound via wrangler.toml as "R2".
  */
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { nanoid } from 'nanoid'
+import type { R2Bucket } from '@cloudflare/workers-types'
 
-const R2_CONFIG = {
-  accountId: process.env.R2_ACCOUNT_ID || '',
-  accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
-  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
-  bucketName: process.env.R2_BUCKET_NAME || '',
-  publicUrl: process.env.R2_PUBLIC_URL || '',
+// R2 public URL - set this to your R2 public bucket URL or custom domain
+function getR2PublicUrl() {
+  return process.env.R2_PUBLIC_URL || (globalThis as any).__env__?.R2_PUBLIC_URL || ''
 }
 
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: `https://${R2_CONFIG.accountId}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: R2_CONFIG.accessKeyId,
-    secretAccessKey: R2_CONFIG.secretAccessKey,
-  },
-})
-
 /**
- * Upload an image to R2 bucket
- * @param file - The image file to upload (as Buffer or Uint8Array)
+ * Upload an image to R2 bucket using native Cloudflare R2 binding
+ * @param r2 - The R2 bucket binding from Cloudflare env
+ * @param file - The image file to upload (as ArrayBuffer or Uint8Array)
  * @param fileName - Original file name
  * @param contentType - MIME type (e.g., 'image/jpeg', 'image/png')
  * @returns Public URL of the uploaded image
  */
 export async function uploadImageToR2(
-  file: Buffer | Uint8Array,
+  r2: R2Bucket,
+  file: ArrayBuffer | Uint8Array,
   fileName: string,
   contentType: string
 ): Promise<string> {
@@ -57,19 +32,15 @@ export async function uploadImageToR2(
     const extension = fileName.split('.').pop() || 'jpg'
     const uniqueFileName = `events/${nanoid()}.${extension}`
 
-    const command = new PutObjectCommand({
-      Bucket: R2_CONFIG.bucketName,
-      Key: uniqueFileName,
-      Body: file,
-      ContentType: contentType,
-      // Make object publicly accessible
-      // Note: Ensure your R2 bucket has public access configured
+    // Upload using native R2 binding
+    await r2.put(uniqueFileName, file, {
+      httpMetadata: {
+        contentType,
+      },
     })
 
-    await s3Client.send(command)
-
     // Return public URL
-    return `${R2_CONFIG.publicUrl}/${uniqueFileName}`
+    return getR2PublicUrl() ? `${getR2PublicUrl()}/${uniqueFileName}` : uniqueFileName
   } catch (error) {
     console.error('Failed to upload image to R2:', error)
     throw new Error('Image upload failed')
@@ -78,19 +49,15 @@ export async function uploadImageToR2(
 
 /**
  * Delete an image from R2 bucket
+ * @param r2 - The R2 bucket binding from Cloudflare env
  * @param imageUrl - Full URL of the image to delete
  */
-export async function deleteImageFromR2(imageUrl: string): Promise<void> {
+export async function deleteImageFromR2(r2: R2Bucket, imageUrl: string): Promise<void> {
   try {
     // Extract key from URL
-    const key = imageUrl.replace(`${R2_CONFIG.publicUrl}/`, '')
+    const key = getR2PublicUrl() ? imageUrl.replace(`${getR2PublicUrl()}/`, '') : imageUrl
 
-    const command = new DeleteObjectCommand({
-      Bucket: R2_CONFIG.bucketName,
-      Key: key,
-    })
-
-    await s3Client.send(command)
+    await r2.delete(key)
   } catch (error) {
     console.error('Failed to delete image from R2:', error)
     throw new Error('Image deletion failed')

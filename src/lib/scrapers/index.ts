@@ -1,15 +1,14 @@
-import { Event, EventScraper } from './types'
+import { deduplicateEvents } from '../utils/deduplicate-events'
 import { bicScraper } from './bic-scraper'
 import { urbanautScraper } from './urbanaut-scraper'
 import { totalEnvironmentScraper } from './total-environment-scraper'
 import { sabhaScraper } from './sabha-scraper'
 import { mapScraper } from './map-scraper'
 import { ihaScraper } from './iha-scraper'
-import { bookmyshowScraper } from './bookmyshow-scraper'
 import { skillboxesScraper } from './skillboxes-scraper'
 import { imeScraper } from './ime-scraper'
 import { districtScraper } from './district-scraper'
-import { deduplicateEvents } from '../utils/deduplicate-events'
+import type { Event, EventScraper } from './types'
 
 /**
  * Scraper Registry
@@ -17,12 +16,11 @@ import { deduplicateEvents } from '../utils/deduplicate-events'
  * Add new scrapers here to make them available to the application.
  * Only enabled scrapers will be executed.
  */
-export const scrapers: EventScraper[] = [
+export const scrapers: Array<EventScraper> = [
   bicScraper,
   mapScraper,
   sabhaScraper,
   ihaScraper,
-  bookmyshowScraper,
   skillboxesScraper,
   totalEnvironmentScraper,
   imeScraper,
@@ -34,7 +32,7 @@ export const scrapers: EventScraper[] = [
 /**
  * Get all enabled scrapers
  */
-export function getEnabledScrapers(): EventScraper[] {
+export function getEnabledScrapers(): Array<EventScraper> {
   return scrapers.filter((scraper) => scraper.enabled)
 }
 
@@ -50,16 +48,19 @@ export function getScraperById(id: string): EventScraper | undefined {
  */
 export type ScraperProgressCallback = (update: {
   scraperId: string
-  events: Event[]
+  events: Array<Event>
   totalProcessed: number
   totalScrapers: number
   priority: 'high' | 'normal' | 'low'
 }) => void
 
 /**
- * Fast scrapers that don't use Puppeteer (complete in ~20-30 seconds)
+ * Fast scrapers that don't use Puppeteer (complete in ~20-30 seconds).
+ * NOTE: ids must match each scraper's `id` exactly — IME's id is
+ * 'indian-music-experience', not 'ime' (the old 'ime' entry silently never
+ * matched, so IME was excluded from fast refreshes).
  */
-const FAST_SCRAPER_IDS = ['bic', 'map', 'iha', 'ime']
+const FAST_SCRAPER_IDS = ['bic', 'iha', 'indian-music-experience']
 
 /**
  * Run all enabled scrapers with priority handling and deduplicate results
@@ -70,14 +71,15 @@ const FAST_SCRAPER_IDS = ['bic', 'map', 'iha', 'ime']
  */
 export async function scrapeAllSources(
   onProgress?: ScraperProgressCallback,
-  fastOnly: boolean = false
+  fastOnly: boolean = false,
+  env?: any,
 ) {
   let enabledScrapers = getEnabledScrapers()
 
   // Filter to fast scrapers only if requested (for manual refresh)
   if (fastOnly) {
     enabledScrapers = enabledScrapers.filter((s) => FAST_SCRAPER_IDS.includes(s.id))
-    console.log(`\n⚡ Fast mode: Running ${enabledScrapers.length} fast scrapers only (BIC, MAP, IHA, IME)`)
+    console.log(`\n⚡ Fast mode: Running ${enabledScrapers.length} fast scrapers only (${enabledScrapers.map((s) => s.id).join(', ')})`)
   }
 
   // Group scrapers by priority
@@ -95,7 +97,7 @@ export async function scrapeAllSources(
     console.log(`\n🚀 Running ${highPriority.length} high priority scraper(s)...`)
     const results = await Promise.allSettled(
       highPriority.map((scraper) =>
-        scraper.scrape().then((result) => ({
+        scraper.scrape(env).then((result) => ({
           scraper: scraper.id,
           ...result,
         })),
@@ -130,7 +132,7 @@ export async function scrapeAllSources(
     console.log(`\n⚡ Running ${normalPriority.length} normal priority scraper(s)...`)
     const results = await Promise.allSettled(
       normalPriority.map((scraper) =>
-        scraper.scrape().then((result) => ({
+        scraper.scrape(env).then((result) => ({
           scraper: scraper.id,
           ...result,
         })),
@@ -178,7 +180,7 @@ export async function scrapeAllSources(
         })
 
         const result = await Promise.race([
-          scraper.scrape(),
+          scraper.scrape(env),
           timeoutPromise
         ])
 

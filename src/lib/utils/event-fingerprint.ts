@@ -1,20 +1,31 @@
 import { Event } from '../scrapers/types'
 
 /**
+ * Simple string hash that produces a URL-safe alphanumeric string.
+ * Uses djb2 combined with a secondary hash for low collision rate.
+ */
+function simpleHash(str: string): string {
+  let h1 = 5381
+  let h2 = 52711
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i)
+    h1 = ((h1 << 5) + h1 + ch) >>> 0
+    h2 = ((h2 << 5) + h2 + ch) >>> 0
+  }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36)
+}
+
+/**
  * Generate a unique fingerprint for an event
- * Uses title + date + link to create a consistent identifier
+ * Uses title + date + link to create a consistent, URL-safe identifier
  */
 export function generateEventFingerprint(event: Event): string {
-  // Normalize the data to ensure consistency
   const normalizedTitle = event.title.toLowerCase().trim()
   const normalizedDate = event.date.trim()
   const normalizedLink = event.link.toLowerCase().trim()
 
-  // Combine the key fields
   const combined = `${normalizedTitle}|${normalizedDate}|${normalizedLink}`
-
-  // Create a simple hash (for server-side, we'll use crypto)
-  return combined
+  return simpleHash(combined)
 }
 
 /**

@@ -14,7 +14,7 @@ import { PWAInstallPrompt } from '../components/PWAInstallPrompt'
 import appCss from '../styles.css?url'
 import { ThemeProvider } from '../providers/ThemeProvider'
 import { PWAProvider } from '../providers/PWAProvider'
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from '@/components/ui/sonner'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -24,14 +24,16 @@ export const Route = createRootRoute({
       },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5',
+        content:
+          'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5',
       },
       {
-        title: 'oh eight oh - Bangalore Events',
+        title: 'oh 8 oh - Bangalore Events',
       },
       {
         name: 'description',
-        content: 'Discover and explore upcoming events in Bangalore. Your go-to event aggregator for concerts, workshops, exhibitions, and more.',
+        content:
+          'Discover and explore upcoming events in Bangalore. Your go-to event aggregator for concerts, workshops, exhibitions, and more.',
       },
       {
         name: 'theme-color',
@@ -69,19 +71,24 @@ export const Route = createRootRoute({
       },
       {
         rel: 'apple-touch-icon',
-        href: '/favicon.png',
+        sizes: '180x180',
+        href: '/apple-touch-icon.png',
+      },
+      {
+        rel: 'icon',
+        href: '/favicon.ico',
+        sizes: '64x64',
+      },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: '/o8o.svg',
       },
       {
         rel: 'icon',
         type: 'image/png',
         sizes: '192x192',
-        href: '/favicon.png',
-      },
-      {
-        rel: 'icon',
-        type: 'image/png',
-        sizes: '512x512',
-        href: '/o8o.png',
+        href: '/logo192.png',
       },
     ],
   }),

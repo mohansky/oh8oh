@@ -19,7 +19,7 @@ export type EventCategory =
   | 'Other'
 
 // Keyword mappings for each category
-const categoryKeywords: Record<EventCategory, string[]> = {
+const categoryKeywords: Record<EventCategory, Array<string>> = {
   Music: [
     'concert',
     'music',
@@ -261,7 +261,7 @@ export function categorizeEvent(
   description?: string,
   existingCategory?: string,
   multiCategory: boolean = true
-): string | string[] {
+): string | Array<string> {
   const textToAnalyze = `${title} ${description || ''}`.toLowerCase()
 
   // Score each category based on keyword matches
@@ -311,7 +311,7 @@ export function categorizeEvent(
   }
 
   // Return multiple categories if they have significant scores
-  const matchedCategories: string[] = []
+  const matchedCategories: Array<string> = []
   const topScore = sortedCategories[0][1]
 
   for (const [category, score] of sortedCategories) {
@@ -329,14 +329,14 @@ export function categorizeEvent(
 /**
  * Get all available categories
  */
-export function getAllCategories(): EventCategory[] {
-  return Object.keys(categoryKeywords) as EventCategory[]
+export function getAllCategories(): Array<EventCategory> {
+  return Object.keys(categoryKeywords) as Array<EventCategory>
 }
 
 /**
  * Normalize category to array format
  */
-export function normalizeCategories(category?: string | string[]): string[] {
+export function normalizeCategories(category?: string | Array<string>): Array<string> {
   if (!category) return ['Other']
   if (Array.isArray(category)) return category
   if (typeof category === 'string') {
@@ -354,11 +354,15 @@ export function normalizeCategories(category?: string | string[]): string[] {
 }
 
 /**
- * Serialize categories for database storage
+ * Serialize categories for database storage.
+ * Returns null for empty/absent input so callers can store SQL NULL.
  */
-export function serializeCategories(categories: string | string[]): string {
+export function serializeCategories(
+  categories?: string | Array<string> | null,
+): string | null {
+  if (categories == null) return null
   if (Array.isArray(categories)) {
-    return JSON.stringify(categories)
+    return categories.length > 0 ? JSON.stringify(categories) : null
   }
   return JSON.stringify([categories])
 }

@@ -8,12 +8,6 @@ main = ".output/server/index.mjs"
 # Account ID
 account_id = "83d4d6746ea272718c8c962ecf89a8cb"
 
-# D1 Database binding
-[[d1_databases]]
-binding = "DB"
-database_name = "oh8oh-db-dev"
-database_id = "761f1c80-e3f1-4ef7-aaa3-b362b0aa4871"
-
 # R2 Bucket for image uploads and static assets
 [[r2_buckets]]
 binding = "R2"
@@ -23,9 +17,18 @@ bucket_name = "event-app"
 [browser]
 binding = "BROWSER"
 
+# Cron Triggers — run the full scrape (incl. Puppeteer sources) daily.
+# Cron is in UTC: 21:30 UTC = 03:00 IST (early morning, low traffic in Bangalore).
+# Handled by the scheduled() Worker export via the scheduled-scrape Nitro plugin.
+[triggers]
+crons = ["30 21 * * *"]
+
 # Environment variables
 [vars]
 ENVIRONMENT = "production"
+# Public base URL of the R2 bucket — prefixed onto uploaded image keys so the
+# stored image URL is absolute (without it, uploads save a bare "events/x.jpg").
+R2_PUBLIC_URL = "https://pub-bed71a8733274489a8ed2376a7183934.r2.dev"
 
 # Asset configuration for serving frontend files
 [assets]

@@ -41,5 +41,6 @@ export interface EventScraper {
   priority?: 'high' | 'normal' | 'low'
 
   // Scrape function that returns events
-  scrape: () => Promise<ScraperResult>
+  // env is the Cloudflare Workers env (provides BROWSER binding for JS-rendered pages)
+  scrape: (env?: any) => Promise<ScraperResult>
 }

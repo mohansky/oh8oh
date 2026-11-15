@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
+import { Shield, UserCog, User as UserIcon } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -12,7 +13,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
-import { Shield, UserCog, User as UserIcon } from 'lucide-react'
 
 interface User {
   id: string
@@ -28,55 +28,11 @@ const checkAdminRole = createServerFn({
   method: 'GET',
 }).handler(async (ctx: any) => {
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
-      return null
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return null
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
-    }
-
-    const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return null
-    }
-
-    const userId = sessionData[0].userId
-
-    // Get user to check role
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0) {
-      return null
-    }
-
-    const user = userData[0]
+    const { getSessionUser, headersFromCtx } = await import('../../lib/server/session')
+    const user = await getSessionUser(headersFromCtx(ctx))
 
     // Check if user has admin role
-    if (user.role === 'admin') {
+    if (user && user.role === 'admin') {
       return {
         id: user.id,
         name: user.name,
@@ -95,52 +51,18 @@ const checkAdminRole = createServerFn({
 // Server function to get all users
 const getAllUsers = createServerFn({
   method: 'GET',
-}).handler(async (ctx: any): Promise<User[]> => {
+}).handler(async (ctx: any): Promise<Array<User>> => {
   try {
-    const request = ctx.request
-    if (!request || !request.headers) {
+    const { getSessionUser, headersFromCtx } = await import('../../lib/server/session')
+    const currentUser = await getSessionUser(headersFromCtx(ctx))
+
+    // Verify user is admin
+    if (!currentUser || currentUser.role !== 'admin') {
       return []
-    }
-
-    const cookieHeader = request.headers.get('cookie') || ''
-    const sessionMatch = cookieHeader.match(/better-auth\.session_token=([^;]+)/)
-
-    if (!sessionMatch) {
-      return []
-    }
-
-    // URL decode and extract unsigned token
-    let sessionToken = decodeURIComponent(sessionMatch[1])
-    if (sessionToken.includes('.')) {
-      sessionToken = sessionToken.split('.')[0]
     }
 
     const { db } = await import('../../db')
-    const { session: sessionTable, user: userTable } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-
-    const sessionData = await db
-      .select()
-      .from(sessionTable)
-      .where(eq(sessionTable.token, sessionToken))
-      .limit(1)
-
-    if (!sessionData || sessionData.length === 0) {
-      return []
-    }
-
-    const userId = sessionData[0].userId
-
-    // Verify user is admin
-    const userData = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, userId))
-      .limit(1)
-
-    if (!userData || userData.length === 0 || userData[0].role !== 'admin') {
-      return []
-    }
+    const { user: userTable } = await import('../../db/schema')
 
     // Get all users
     const allUsers = await db.select().from(userTable)
@@ -149,7 +71,7 @@ const getAllUsers = createServerFn({
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role as 'admin' | 'host' | 'user',
+      role: user.role,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,
     }))

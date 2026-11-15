@@ -1,18 +1,13 @@
-import { Calendar, MapPin, Clock, Ticket, Heart, X, Share2 } from 'lucide-react'
+import { Calendar, Clock, Heart, MapPin, Share2, Ticket, X } from 'lucide-react'
 import { useState } from 'react'
-import { Event } from '../lib/scrapers'
-import { processEventDateTime, formatTime } from '../lib/utils/date-time'
+import { useRouter } from '@tanstack/react-router'
+import { toast } from 'sonner'
+import { formatTime, processEventDateTime } from '../lib/utils/date-time'
 import { normalizeCategories } from '../lib/utils/categorize-event'
 import { generateEventFingerprint } from '../lib/utils/event-fingerprint'
+import { safeExternalUrl } from '../lib/utils/validation'
 import { authClient } from '../lib/auth-client'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  // CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { toggleBookmark } from '../lib/server/bookmarks'
 import { Badge } from './ui/badge'
 import { AspectRatio } from './ui/aspect-ratio'
 import { Button } from './ui/button'
@@ -25,9 +20,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog'
-import { toggleBookmark } from '../lib/server/bookmarks'
-import { useRouter } from '@tanstack/react-router'
-import { toast } from 'sonner'
+import type { Event } from '../lib/scrapers'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  // CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 interface EventCardProps {
   event: Event
@@ -52,7 +53,7 @@ export function EventCard({
 
   // Get user's time format preference
   const { data: session } = authClient.useSession()
-  const userTimeFormat = (session?.user as any)?.timeFormat || '12h'
+  const userTimeFormat = (session?.user)?.timeFormat || '12h'
 
   // Process date and time using universal utility
   const { cleanDate, cleanTime } = processEventDateTime({
@@ -123,19 +124,19 @@ export function EventCard({
   return (
     <>
       <a
-        href={event.link}
+        href={safeExternalUrl(event.link)}
         target="_blank"
         rel="noopener noreferrer"
         className="h-full block"
       >
         <Card className="group p-0 mb:pb-0 overflow-hidden relative h-full grid grid-cols-3 md:flex md:flex-col">
-          <span className="absolute bottom-1 right-1 z-10  flex gap-1 lg:gap-3">
+          <span className="absolute bottom-1 right-1 z-10 flex gap-1 lg:gap-3">
             {/* Admin Remove Button */}
             {isAdmin && onRemove && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="bg-background/80 backdrop-blur-sm hover:bg-destructive/90 hover:text-destructive-foreground"
+                className="backdrop-blur-sm hover:bg-destructive/90 hover:text-destructive-foreground"
                 onClick={handleRemoveClick}
                 disabled={isRemoving}
               >
@@ -147,17 +148,17 @@ export function EventCard({
             <Button
               variant="ghost"
               size="icon"
-              className="bg-background/80 backdrop-blur-sm hover:bg-background/90"
+              className="group/share backdrop-blur-sm hover:bg-transparent dark:hover:bg-transparent"
               onClick={handleShareClick}
             >
-              <Share2 className="w-5 h-5 text-muted-foreground hover:text-primary" />
+              <Share2 className="w-5 h-5 text-muted-foreground transition-colors group-hover/share:text-primary" />
             </Button>
 
             {/* Bookmark Button */}
             <Button
               variant="ghost"
               size="icon"
-              className="bg-background/80 backdrop-blur-sm hover:bg-background/90"
+              className="group/bookmark backdrop-blur-sm hover:bg-transparent dark:hover:bg-transparent"
               onClick={handleBookmarkClick}
               disabled={isToggling}
             >
@@ -165,7 +166,7 @@ export function EventCard({
                 className={`w-5 h-5 transition-colors ${
                   bookmarked
                     ? 'fill-destructive text-destructive'
-                    : 'text-muted-foreground hover:text-destructive'
+                    : 'text-muted-foreground group-hover/bookmark:text-destructive group-hover/bookmark:fill-destructive'
                 }`}
               />
             </Button>
@@ -204,7 +205,7 @@ export function EventCard({
 
               {/* Category badges at bottom of image */}
               {event.category && (
-                <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+                <div className="absolute bottom-1 left-1 flex flex-wrap gap-1">
                   {(() => {
                     const categories = normalizeCategories(event.category)
                     // Debug: log if multiple categories
@@ -218,7 +219,7 @@ export function EventCard({
                       <Badge
                         key={index}
                         variant="secondary"
-                        className="text-xs bg-background/80 backdrop-blur-sm"
+                        className="text-xs bg-background/20 backdrop-blur-sm capitalize"
                       >
                         {cat}
                       </Badge>
@@ -252,7 +253,7 @@ export function EventCard({
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 pt-0">
+            <CardContent className="flex-1 pt-0 mb-5">
               <div className="space-y-1">
                 {/* Event Details */}
                 {/* Venue */}

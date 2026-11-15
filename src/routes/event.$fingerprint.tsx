@@ -1,13 +1,14 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Calendar, MapPin, Clock, Ticket, Share2, ExternalLink, ArrowLeft, CalendarPlus } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { ArrowLeft, Calendar, CalendarPlus, Clock, ExternalLink, MapPin, Share2, Ticket } from 'lucide-react'
+import { toast } from 'sonner'
 import { getEventByFingerprint } from '../lib/server/get-event'
-import { processEventDateTime, formatTime } from '../lib/utils/date-time'
+import { formatTime, processEventDateTime } from '../lib/utils/date-time'
 import { normalizeCategories } from '../lib/utils/categorize-event'
 import { downloadICS } from '../lib/utils/ics'
+import { safeExternalUrl } from '../lib/utils/validation'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { toast } from 'sonner'
 import { authClient } from '../lib/auth-client'
 
 export const Route = createFileRoute('/event/$fingerprint')({
@@ -88,7 +89,7 @@ export const Route = createFileRoute('/event/$fingerprint')({
 function EventPage() {
   const event = Route.useLoaderData()
   const { data: session } = authClient.useSession()
-  const userTimeFormat = (session?.user as any)?.timeFormat || '12h'
+  const userTimeFormat = (session?.user)?.timeFormat || '12h'
 
   const { cleanDate, cleanTime } = processEventDateTime({
     date: event.date,
@@ -152,7 +153,7 @@ function EventPage() {
         <Card className="overflow-hidden">
           {/* Event Image */}
           {event.image && (
-            <div className="relative w-full aspect-[16/9] overflow-hidden">
+            <div className="relative w-full aspect-video overflow-hidden">
               <img
                 src={event.image}
                 alt={event.title}
@@ -233,7 +234,7 @@ function EventPage() {
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <Button asChild className="flex-1">
-                <a href={event.link} target="_blank" rel="noopener noreferrer">
+                <a href={safeExternalUrl(event.link)} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   View on {event.source}
                 </a>

@@ -1,6 +1,6 @@
+import { desc, eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { bookmarks } from '../../db/schema'
-import { eq, desc } from 'drizzle-orm'
 import type { Event } from '../scrapers/types'
 
 /**
@@ -27,7 +27,11 @@ export async function addBookmark(userId: string, event: Event) {
       eventTime: event.time,
       eventLink: event.link,
       eventDescription: event.description || null,
-      eventCategory: event.category || null,
+      eventCategory: event.category
+        ? Array.isArray(event.category)
+          ? JSON.stringify(event.category)
+          : event.category
+        : null,
       eventImage: event.image || null,
       eventVenue: event.venue || null,
       eventPrice: event.price || null,
@@ -69,7 +73,7 @@ export async function isBookmarked(userId: string, event: Event): Promise<boolea
 /**
  * Get all bookmarks for a user
  */
-export async function getUserBookmarks(userId: string): Promise<Event[]> {
+export async function getUserBookmarks(userId: string): Promise<Array<Event>> {
   const userBookmarks = await db
     .select()
     .from(bookmarks)
@@ -108,7 +112,7 @@ export async function getUserBookmarkIds(userId: string): Promise<Set<string>> {
  */
 export async function getBookmarkStatusMap(
   userId: string,
-  events: Event[]
+  events: Array<Event>
 ): Promise<Map<string, boolean>> {
   const bookmarkIds = await getUserBookmarkIds(userId)
   const statusMap = new Map<string, boolean>()

@@ -1,7 +1,6 @@
 import * as cheerio from 'cheerio'
-import { EventScraper, ScraperResult } from './types'
-import { categorizeEvent } from '../utils/categorize-event'
-import { fetchRenderedHTML } from './puppeteer-helper'
+import { fetchRenderedHTML } from './browser-helper'
+import type { EventScraper, ScraperResult } from './types'
 
 export const districtScraper: EventScraper = {
   id: 'district',
@@ -10,7 +9,7 @@ export const districtScraper: EventScraper = {
   enabled: true, // Enabled - tested and working
   priority: 'low', // Uses Puppeteer, so low priority
 
-  scrape: async (): Promise<ScraperResult> => {
+  scrape: async (env?: any): Promise<ScraperResult> => {
     try {
       const events: ScraperResult['events'] = []
 
@@ -18,7 +17,7 @@ export const districtScraper: EventScraper = {
       const url = 'https://www.district.in/events/music-in-bengaluru-book-tickets'
       console.log(`🎵 Fetching District music events from ${url}...`)
 
-      const html = await fetchRenderedHTML(url, {
+      const html = await fetchRenderedHTML(env?.BROWSER, url, {
         waitUntil: 'networkidle2', // Wait for network requests to complete
         timeout: 45000, // Increased timeout for API calls
         waitAfterLoad: 2000, // Wait for React to render after data loads
@@ -67,7 +66,7 @@ export const districtScraper: EventScraper = {
         // Extract date and time (at the beginning)
         // Pattern: "Day, DD Mon, HH:MM PM" or "Day, DD Mon – Day, DD Mon, HH:MM PM" (for multi-day)
         const dateTimeMatch = fullText.match(/^([A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3}(?:\s+–\s+[A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3})?,\s+\d{1,2}:\d{2}\s+[AP]M)/)
-        let dateTime = dateTimeMatch ? dateTimeMatch[1] : ''
+        const dateTime = dateTimeMatch ? dateTimeMatch[1] : ''
 
         // Split date and time
         let date = ''

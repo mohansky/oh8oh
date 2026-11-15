@@ -1,8 +1,8 @@
 import * as cheerio from 'cheerio'
-import { EventScraper, ScraperResult } from './types'
-import { fetchRenderedHTML } from './puppeteer-helper'
 import { categorizeEvent } from '../utils/categorize-event'
 import { cleanTimeString } from '../utils/date-time'
+import { fetchRenderedHTML } from './browser-helper'
+import type { EventScraper, ScraperResult } from './types'
 
 // Debug flag - set to true to see venue extraction details
 const DEBUG_VENUE_EXTRACTION = false
@@ -44,9 +44,10 @@ function isWithinTimeWindow(dateStr: string, days: number = 14): boolean {
  * NOTE: Currently disabled for performance (adds 10-30s per event)
  * Can be re-enabled by uncommenting the call in the scraper below
  */
-async function fetchSkillboxesEventDetails(eventUrl: string, debug = false): Promise<{ venue?: string } | null> {
+// Exported (though currently unused) so it stays available for re-enabling — see note above.
+export async function fetchSkillboxesEventDetails(eventUrl: string, browserBinding?: any, debug = false): Promise<{ venue?: string } | null> {
   try {
-    const html = await fetchRenderedHTML(eventUrl, {
+    const html = await fetchRenderedHTML(browserBinding, eventUrl, {
       waitUntil: 'networkidle2', // Wait for network to be idle for better content loading
       timeout: 30000,
     })
@@ -186,13 +187,13 @@ export const skillboxesScraper: EventScraper = {
   enabled: true,
   priority: 'low', // Low priority due to slow scraping speed
 
-  scrape: async (): Promise<ScraperResult> => {
+  scrape: async (env?: any): Promise<ScraperResult> => {
     try {
       // Filter by Bangalore (city ID 9)
       const url = 'https://www.skillboxes.com/events?filter=%7B%22selectedCity%22:9%7D'
 
       // Use Puppeteer to render the JavaScript-heavy page
-      const html = await fetchRenderedHTML(url, {
+      const html = await fetchRenderedHTML(env?.BROWSER, url, {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
         skipScroll: true, // Events load upfront, no need to scroll
@@ -210,7 +211,7 @@ export const skillboxesScraper: EventScraper = {
       const $eventCards = $('.event-result-box')
 
       // Collect promises for fetching individual event details
-      const eventPromises: Promise<any>[] = []
+      const eventPromises: Array<Promise<any>> = []
 
       $eventCards.each((_, element) => {
         const $card = $(element)
@@ -245,7 +246,7 @@ export const skillboxesScraper: EventScraper = {
 
         let date = 'Check website for dates'
         let time = ''
-        let venue = 'Check event website'
+        const venue = 'Check event website'
 
         if (locationDateMatch) {
           const rawDate = locationDateMatch[1].trim()
@@ -293,7 +294,7 @@ export const skillboxesScraper: EventScraper = {
           // OPTIMIZATION: Skip individual page fetch for faster scraping
           // Venue details from listing page are sufficient (shows "Bangalore")
           // Uncomment below to fetch detailed venue (adds 10-30s per event):
-          // const details = await fetchSkillboxesEventDetails(link, DEBUG_VENUE_EXTRACTION)
+          // const details = await fetchSkillboxesEventDetails(link, env?.BROWSER, DEBUG_VENUE_EXTRACTION)
           // if (details?.venue) {
           //   venue = details.venue
           // }

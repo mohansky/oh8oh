@@ -1,19 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { Calendar } from '../components/Calendar'
-import { type Event } from '../lib/scrapers'
 import { getCachedEvents } from '../lib/cache/events-cache'
 import { isUpcomingEvent } from '../lib/utils/date-time'
+import type {Event} from '../lib/scrapers';
 
 interface CalendarData {
-  events: Event[]
+  events: Array<Event>
 }
 
 // Server function to get events for calendar
 const getCalendarEvents = createServerFn({
   method: 'GET',
-}).handler(async (): Promise<CalendarData> => {
-  const result = await getCachedEvents()
+}).handler(async (ctx: any): Promise<CalendarData> => {
+  const { getCloudflareEnv, getWaitUntil } = await import('../lib/server/session')
+  const env = getCloudflareEnv(ctx)
+  const result = await getCachedEvents(env, getWaitUntil(ctx))
 
   // Also fetch approved user-submitted events
   const { db } = await import('../db')

@@ -1,5 +1,6 @@
 import { Event } from '../scrapers/types'
 import { parseEventDateToDate } from './calendar'
+import { generateEventFingerprint } from './event-fingerprint'
 
 // Generate ICS (iCalendar) file content for an event
 export function generateICS(event: Event): string {
@@ -106,7 +107,6 @@ export function generateICS(event: Event): string {
 
 // Generate a unique identifier for the event
 function generateUID(event: Event): string {
-  const { generateEventFingerprint } = require('./event-fingerprint')
   const fingerprint = generateEventFingerprint(event)
   return `${fingerprint}@oh8oh.com`
 }
